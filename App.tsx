@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -6,6 +5,7 @@ import Matching from './components/Matching';
 import SessionModule from './components/SessionModule';
 import Leaderboard from './components/Leaderboard';
 import LoginModal from './components/LoginModal';
+import LandingPage from './components/LandingPage';
 import { storageService } from './services/storageService';
 import { Student, Skill } from './types';
 import { Menu, Zap, Bell, Layout, Users, Trophy, Target, LogIn, User, Sparkles, ArrowRight, Ghost } from 'lucide-react';
@@ -23,7 +23,6 @@ const App: React.FC = () => {
   useEffect(() => {
     storageService.init();
     const currentUser = storageService.getCurrentUser();
-    // Start with NO NAME (null user) unless previously saved in localStorage
     setUser(currentUser);
     setIsInitialized(true);
   }, []);
@@ -118,53 +117,15 @@ const App: React.FC = () => {
     </div>
   );
 
-  // ONBOARDING GATEWAY (User must setup profile first)
   if (!user) return (
-    <div className={`${isDark ? 'text-slate-100 bg-slate-950' : 'text-slate-900 bg-[#f8faff]'} min-h-screen transition-colors duration-500 flex items-center justify-center p-6 relative overflow-hidden`}>
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 -left-20 w-96 h-96 bg-indigo-500/10 rounded-full blur-[120px]"></div>
-        <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-fuchsia-500/10 rounded-full blur-[120px]"></div>
-      </div>
-
-      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={handleLogin} currentUser={null} />
-      
-      <div className="relative z-10 max-w-2xl w-full glass p-10 md:p-16 rounded-[4rem] text-center space-y-12 shadow-2xl animate-in fade-in zoom-in duration-700">
-        <div className="relative inline-block">
-          <div className="absolute inset-0 bg-indigo-500 blur-3xl opacity-20 animate-pulse"></div>
-          <div className="w-24 h-24 bg-gradient-to-tr from-indigo-600 to-fuchsia-600 rounded-[2.5rem] flex items-center justify-center text-white relative z-10 shadow-2xl transform hover:rotate-12 transition-transform cursor-pointer">
-            <Zap size={48} className="fill-current animate-float" />
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <h1 className="text-5xl md:text-7xl font-black tracking-tighter leading-none">
-            Welcome to <br/><span className="text-indigo-600 dark:text-cyan-400">SkillSwap</span>
-          </h1>
-          <p className="text-slate-500 dark:text-slate-400 text-lg font-medium max-w-sm mx-auto italic">
-            "Peer learning is the future of intelligence."
-          </p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-6 glass rounded-[2rem] text-left border-transparent bg-white/40 dark:bg-white/5">
-             <div className="text-indigo-600 dark:text-cyan-400 mb-2 font-black">01</div>
-             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Knowledge Pool</p>
-             <p className="text-xs font-bold mt-1">Access 100+ skills from peers.</p>
-          </div>
-          <div className="p-6 glass rounded-[2rem] text-left border-transparent bg-white/40 dark:bg-white/5">
-             <div className="text-fuchsia-600 mb-2 font-black">02</div>
-             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Neural Matching</p>
-             <p className="text-xs font-bold mt-1">AI-powered pairing logic.</p>
-          </div>
-        </div>
-
-        <button 
-          onClick={() => setIsLoginModalOpen(true)} 
-          className="group w-full bg-indigo-600 text-white px-12 py-6 rounded-[2rem] font-black text-sm uppercase tracking-[0.2em] shadow-2xl shadow-indigo-500/40 hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-4 mx-auto"
-        >
-          Setup Neural Profile <ArrowRight size={20} className="group-hover:translate-x-2 transition-transform" />
-        </button>
-      </div>
+    <div className={`${isDark ? 'dark' : ''}`}>
+      <LoginModal 
+        isOpen={isLoginModalOpen} 
+        onClose={() => setIsLoginModalOpen(false)} 
+        onLogin={handleLogin} 
+        currentUser={null} 
+      />
+      <LandingPage onGetStarted={() => setIsLoginModalOpen(true)} />
     </div>
   );
 
