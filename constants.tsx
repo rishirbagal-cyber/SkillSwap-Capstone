@@ -1,7 +1,10 @@
 
-import React from 'react';
-import { Book, GraduationCap, Trophy, Users, Zap, Award, Target, Layout } from 'lucide-react';
-import { Student, Badge } from './types';
+import { Student, Badge, SkillCategory } from './types';
+import { Layout, Users, Book, Trophy, Target } from 'lucide-react';
+
+export const SKILL_CATEGORIES: SkillCategory[] = [
+  'Development', 'AI & Data', 'Design', 'Academics', 'Soft Skills'
+];
 
 export const BADGES: Badge[] = [
   { id: 'b1', name: 'Eagle Eye', icon: '🦅', description: 'Spotting 10 errors in sessions' },
@@ -24,7 +27,7 @@ export const MOCK_STUDENTS: Student[] = [
     skillReputation: 4,
     points: 1250,
     rank: 'Pro',
-    avatar: 'https://picsum.photos/200/200?random=1',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alex',
     badges: [BADGES[0], BADGES[1]],
     streak: 5,
   },
@@ -41,7 +44,7 @@ export const MOCK_STUDENTS: Student[] = [
     skillReputation: 5,
     points: 1400,
     rank: 'Expert',
-    avatar: 'https://picsum.photos/200/200?random=2',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Priya',
     badges: [BADGES[2], BADGES[3]],
     streak: 12,
   },
@@ -58,33 +61,67 @@ export const MOCK_STUDENTS: Student[] = [
     skillReputation: 3,
     points: 900,
     rank: 'Apprentice',
-    avatar: 'https://picsum.photos/200/200?random=3',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Michael',
     badges: [BADGES[1]],
     streak: 3,
   },
   {
     id: 's4',
     name: 'Sarah Miller',
-    college: 'Engineering Institute',
-    branch: 'AI & DS',
+    college: 'Design School',
+    branch: 'Interaction Design',
     year: 1,
     strongSkills: ['Figma', 'UI Design', 'HTML'],
-    weakSkills: ['Python', 'SQL'],
+    weakSkills: ['Python', 'SQL', 'React'],
     teachingScore: 4.2,
     learningScore: 4.9,
     skillReputation: 4,
     points: 500,
     rank: 'Novice',
-    avatar: 'https://picsum.photos/200/200?random=4',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Sarah',
     badges: [],
     streak: 1,
+  },
+  {
+    id: 's5',
+    name: 'David Wang',
+    college: 'Tech University',
+    branch: 'AI Engineering',
+    year: 3,
+    strongSkills: ['Python', 'PyTorch', 'SQL'],
+    weakSkills: ['Figma', 'CSS'],
+    teachingScore: 4.7,
+    learningScore: 4.3,
+    skillReputation: 4,
+    points: 1100,
+    rank: 'Expert',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David',
+    badges: [BADGES[1], BADGES[3]],
+    streak: 8,
+  },
+  {
+    id: 's6',
+    name: 'Emily Davis',
+    college: 'Liberal Arts College',
+    branch: 'Communication',
+    year: 2,
+    strongSkills: ['Public Speaking', 'Technical Writing'],
+    weakSkills: ['Java', 'C++'],
+    teachingScore: 4.5,
+    learningScore: 4.2,
+    skillReputation: 3,
+    points: 750,
+    rank: 'Apprentice',
+    avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Emily',
+    badges: [BADGES[0]],
+    streak: 4,
   }
 ];
 
 export const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: Layout },
-  { id: 'matching', label: 'Find Matches', icon: Users },
-  { id: 'sessions', label: 'Sessions', icon: Book },
-  { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
-  { id: 'marketplace', label: 'Marketplace', icon: Target },
+  { id: 'matching', label: 'Explore Hub', icon: Users },
+  { id: 'sessions', label: 'History', icon: Book },
+  { id: 'leaderboard', label: 'Rankings', icon: Trophy },
+  { id: 'marketplace', label: 'Assets', icon: Target },
 ];
