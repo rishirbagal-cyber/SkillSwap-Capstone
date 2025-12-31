@@ -1,5 +1,10 @@
 
-export type Skill = string;
+export type SkillCategory = 'Development' | 'Design' | 'AI & Data' | 'Academics' | 'Soft Skills' | 'Other';
+
+export interface Skill {
+  name: string;
+  category: SkillCategory;
+}
 
 export interface Badge {
   id: string;
@@ -14,8 +19,8 @@ export interface Student {
   college: string;
   branch: string;
   year: number;
-  strongSkills: Skill[];
-  weakSkills: Skill[];
+  strongSkills: string[];
+  weakSkills: string[];
   teachingScore: number;
   learningScore: number;
   skillReputation: number;
@@ -29,8 +34,8 @@ export interface Student {
 export interface Match {
   partner: Student;
   matchPercentage: number;
-  mutualStrongSkill: Skill;
-  mutualWeakSkill: Skill;
+  mutualStrongSkill: string;
+  mutualWeakSkill: string;
 }
 
 export type SessionMode = 'F2F' | 'ONLINE';
@@ -51,7 +56,6 @@ export interface QuizQuestion {
   correctIndex: number;
 }
 
-// Added Session interface to fix error in services/storageService.ts
 export interface Session {
   id: string;
   partnerId: string;
