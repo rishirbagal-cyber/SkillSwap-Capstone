@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -7,13 +8,13 @@ import Leaderboard from './components/Leaderboard';
 import LoginModal from './components/LoginModal';
 import LandingPage from './components/LandingPage';
 import { storageService } from './services/storageService';
-import { Student, Skill } from './types';
-import { Menu, Zap, Bell, Layout, Users, Trophy, Target, LogIn, User, Sparkles, ArrowRight, Ghost } from 'lucide-react';
+import { Student } from './types';
+import { Menu, Zap, Bell, Layout, Users, Trophy, Target, User, Ghost } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isDark, setIsDark] = useState(storageService.getTheme());
-  const [activeSession, setActiveSession] = useState<{ partner: Student; skill: Skill } | null>(null);
+  const [activeSession, setActiveSession] = useState<{ partner: Student; skill: string } | null>(null);
   const [user, setUser] = useState<Student | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -57,7 +58,7 @@ const App: React.FC = () => {
     triggerNotification("Session Terminated. Neural Link Disconnected.");
   };
 
-  const handleStartSession = (partner: Student, skill: Skill) => {
+  const handleStartSession = (partner: Student, skill: string) => {
     setActiveSession({ partner, skill });
     setIsSidebarOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -178,7 +179,7 @@ const App: React.FC = () => {
                  <SessionModule partner={activeSession.partner} skill={activeSession.skill} onFinish={handleFinishSession} onCancel={() => setActiveSession(null)} />
                ) : (
                  <div className="pb-24 md:pb-0">
-                    {activeTab === 'dashboard' && <Dashboard />}
+                    {activeTab === 'dashboard' && <Dashboard onStartSession={handleStartSession} />}
                     {activeTab === 'matching' && <Matching onStartSession={handleStartSession} />}
                     {activeTab === 'leaderboard' && <Leaderboard />}
                     {activeTab === 'sessions' && (
