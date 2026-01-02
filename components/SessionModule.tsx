@@ -1,12 +1,13 @@
 
 import React, { useState, useEffect } from 'react';
-import { Student, SessionMode, Skill, QuizQuestion, RoadmapStep, LearningResource } from '../types';
+import { Student, SessionMode, QuizQuestion, RoadmapStep, LearningResource } from '../types';
 import { geminiService } from '../services/geminiService';
 import { Clock, MapPin, MessageSquare, Monitor, Send, Search, Edit3, Zap, Sparkles, BookOpen, Compass, ChevronRight, Star, ShieldCheck, Video, Layout } from 'lucide-react';
 
 interface SessionModuleProps {
   partner: Student;
-  skill: Skill;
+  // Use string for skill name as it's the primary identifier and used by Gemini services
+  skill: string;
   onFinish: (score: number) => void;
   onCancel: () => void;
 }
@@ -36,6 +37,7 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
     return () => clearInterval(timer);
   }, [isActive, timeLeft]);
 
+  // Load content using skill string
   const loadAIContent = async () => {
     setIsLoadingAI(true);
     const [map, res] = await Promise.all([
@@ -53,6 +55,7 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
     loadAIContent();
   };
 
+  // Generate quiz using skill string
   const handleEndSession = async () => {
     setIsActive(false);
     setIsLoadingAI(true);

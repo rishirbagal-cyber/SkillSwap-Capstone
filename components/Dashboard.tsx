@@ -1,12 +1,14 @@
-import React, { useEffect, useState } from 'react';
+
+import React, { useEffect, useState, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { storageService } from '../services/storageService';
 import { geminiService } from '../services/geminiService';
-/* Fix: Import missing Users icon from lucide-react */
 import { 
   Award, BookOpen, Star, TrendingUp, Zap, Target, Flame, 
-  Activity, Sparkles, Clock, CheckCircle, Hand, Globe, Users
+  Activity, Sparkles, Clock, CheckCircle, Hand, Globe, Users,
+  BrainCircuit, ArrowRight
 } from 'lucide-react';
+import { Student } from '../types';
 
 const data = [
   { name: 'Mon', score: 120 },
@@ -18,8 +20,13 @@ const data = [
   { name: 'Sun', score: 700 },
 ];
 
-const Dashboard: React.FC = () => {
+interface DashboardProps {
+  onStartSession?: (partner: Student, skill: string) => void;
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ onStartSession }) => {
   const user = storageService.getCurrentUser();
+  const students = storageService.getStudents().filter(s => s.id !== user?.id);
   const [insight, setInsight] = useState<string>("Syncing neural nodes...");
   const [isMounted, setIsMounted] = useState(false);
 
@@ -36,6 +43,20 @@ const Dashboard: React.FC = () => {
     };
     fetchInsight();
   }, [user]);
+
+  const recommendedMatches = useMemo(() => {
+    if (!user) return [];
+    return students.map(s => {
+      const matchSkill = s.strongSkills.find(sk => user.weakSkills.includes(sk));
+      let score = matchSkill ? 70 : 10;
+      if (s.college === user.college) score += 20;
+      return { 
+        partner: s, 
+        matchScore: Math.min(100, score),
+        suggestedSkill: matchSkill || s.strongSkills[0]
+      };
+    }).sort((a, b) => b.matchScore - a.matchScore).slice(0, 4);
+  }, [user, students]);
 
   if (!isMounted || !user) return null;
 
@@ -90,10 +111,51 @@ const Dashboard: React.FC = () => {
         </div>
       </header>
 
+      {/* Smart Recommendations Section */}
+      <section className="space-y-6">
+        <div className="flex justify-between items-center px-4">
+          <h3 className="text-xl font-black flex items-center gap-3 dark:text-white uppercase tracking-tighter">
+            <BrainCircuit className="text-indigo-600" size={24} /> Top Matches for You
+          </h3>
+          <button className="text-[10px] font-black uppercase text-indigo-600 tracking-widest flex items-center gap-2 group hover:translate-x-1 transition-all">
+            See Neural Network <ArrowRight size={14} />
+          </button>
+        </div>
+        <div className="flex overflow-x-auto gap-6 pb-6 custom-scrollbar scroll-smooth px-2">
+          {recommendedMatches.map((m, i) => (
+            <div key={i} className="neo-card min-w-[300px] p-6 rounded-[2.5rem] flex flex-col gap-6 group hover:border-indigo-600/50 transition-all border-transparent">
+              <div className="flex justify-between items-start">
+                <div className="relative">
+                  <img src={m.partner.avatar} className="w-14 h-14 rounded-2xl shadow-lg border-2 border-white dark:border-white/10" />
+                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></div>
+                </div>
+                <div className="px-3 py-1 bg-indigo-50 dark:bg-indigo-500/10 rounded-full text-[9px] font-black text-indigo-600 border border-indigo-100 dark:border-indigo-500/20">
+                  {m.matchScore}% Neural Match
+                </div>
+              </div>
+              <div className="space-y-1">
+                <h4 className="font-black text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors">{m.partner.name}</h4>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{m.partner.college}</p>
+              </div>
+              <div className="p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
+                 <p className="text-[8px] font-black uppercase text-slate-400 mb-1">Expert in</p>
+                 <p className="text-xs font-black dark:text-white">{m.suggestedSkill}</p>
+              </div>
+              <button 
+                onClick={() => onStartSession?.(m.partner, m.suggestedSkill)}
+                className="w-full py-3 bg-slate-900 dark:bg-indigo-600 text-white rounded-xl font-black text-[9px] uppercase tracking-widest shadow-lg active:scale-95 transition-all hover:bg-indigo-700"
+              >
+                Instant Sync
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-        {/* Momentum Chart Section */}
-        <div className="lg:col-span-8 neo-card p-10 rounded-[4rem] relative overflow-hidden flex flex-col min-h-[500px]">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-16">
+        {/* Momentum Chart Section - Fixed Overlap */}
+        <div className="lg:col-span-8 neo-card p-8 md:p-10 rounded-[3rem] md:rounded-[4rem] flex flex-col min-h-[500px] overflow-visible">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-10">
             <h3 className="text-2xl font-black flex items-center gap-4 dark:text-white">
               <div className="p-4 bg-indigo-500/10 rounded-3xl">
                 <TrendingUp className="text-indigo-600" size={24} />
@@ -105,9 +167,9 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           
-          <div className="w-full h-[350px] mt-auto relative">
+          <div className="flex-1 w-full min-h-[300px] relative">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+              <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
                 <defs>
                   <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#6366f1" stopOpacity={0.5}/>
@@ -115,11 +177,9 @@ const Dashboard: React.FC = () => {
                   </linearGradient>
                 </defs>
                 <CartesianGrid strokeDasharray="10 10" vertical={false} stroke="rgba(99,102,241,0.05)" />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11, fontWeight: '800'}} dy={20} />
-                <YAxis hide />
-                <Tooltip 
-                  contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.15)', fontWeight: '900', padding: '20px' }}
-                />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 11, fontWeight: '800'}} dy={15} height={40} />
+                <YAxis hide domain={['auto', 'auto']} />
+                <Tooltip contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.15)', fontWeight: '900', padding: '20px', background: 'rgba(255,255,255,0.9)' }} />
                 <Area type="monotone" dataKey="score" stroke="#6366f1" strokeWidth={6} fillOpacity={1} fill="url(#chartGradient)" animationDuration={3000}/>
               </AreaChart>
             </ResponsiveContainer>
@@ -132,7 +192,7 @@ const Dashboard: React.FC = () => {
             <h3 className="text-xl font-black mb-10 flex items-center gap-4 dark:text-white">
               <Activity className="text-indigo-600" size={20} /> Neural Activity
             </h3>
-            <div className="space-y-10 overflow-y-auto pr-2 custom-scrollbar flex-1">
+            <div className="space-y-10 overflow-y-auto pr-2 custom-scrollbar flex-1 max-h-[400px]">
               {[
                 { text: `Profile updated. Target node: ${user.weakSkills[0]}`, time: '2h ago', icon: Target, color: 'text-indigo-500' },
                 { text: 'New Peer Match detected nearby', time: '4h ago', icon: Users, color: 'text-green-500' },
@@ -153,7 +213,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Dynamic Cards Footer */}
         <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
           {[
             { label: 'Verified Mastery', val: user.strongSkills.length, icon: BookOpen, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-500/10' },
