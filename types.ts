@@ -1,6 +1,8 @@
 
 export type SkillCategory = 'Development' | 'Design' | 'AI & Data' | 'Academics' | 'Soft Skills' | 'Other';
 
+export type SortOption = 'relevance' | 'rating' | 'points' | 'streak';
+
 export interface Skill {
   name: string;
   category: SkillCategory;

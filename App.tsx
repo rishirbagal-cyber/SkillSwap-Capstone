@@ -7,27 +7,38 @@ import SessionModule from './components/SessionModule';
 import Leaderboard from './components/Leaderboard';
 import LoginModal from './components/LoginModal';
 import LandingPage from './components/LandingPage';
+import AuthPage from './components/AuthPage';
 import AIAssistant from './components/AIAssistant';
 import { storageService } from './services/storageService';
 import { Student } from './types';
-import { Menu, Zap, Bell, Layout, Users, Trophy, Target, User, Ghost, MessageSquareCode } from 'lucide-react';
+import { Menu, Zap, Bell, Layout, Users, Trophy, Target, User, Ghost, MessageSquareCode, RefreshCcw, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isDark, setIsDark] = useState(storageService.getTheme());
   const [activeSession, setActiveSession] = useState<{ partner: Student; skill: string } | null>(null);
   const [user, setUser] = useState<Student | null>(null);
+  
+  // Auth & Flow State
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showLanding, setShowLanding] = useState(false);
+  
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const REQUESTED_AVATAR_URL = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSq4FbeFfJID8_uH9lU0Y3_i3Uf_f4vO_2rCw&s";
 
   useEffect(() => {
     storageService.init();
     const currentUser = storageService.getCurrentUser();
-    setUser(currentUser);
+    if (currentUser) {
+      setUser(currentUser);
+      setIsAuthenticated(true);
+      setShowLanding(false); // If they have a profile, go straight to dashboard after login logic
+    }
     setIsInitialized(true);
   }, []);
 
@@ -45,6 +56,30 @@ const App: React.FC = () => {
     setTimeout(() => setNotification(null), 4000);
   };
 
+  const handleLoginSuccess = () => {
+    setIsAuthenticated(true);
+    // If user doesn't have a profile yet, show landing. 
+    // If they do, landing is still shown first per user request.
+    setShowLanding(true);
+  };
+
+  const handleGetStarted = () => {
+    // If user exists, go to dashboard. Otherwise, open profile setup.
+    if (user) {
+      setShowLanding(false);
+    } else {
+      setIsLoginModalOpen(true);
+    }
+  };
+
+  const handleSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    setIsSyncing(false);
+    triggerNotification("Neural Link Resynchronized.");
+  };
+
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     setActiveSession(null);
@@ -55,6 +90,8 @@ const App: React.FC = () => {
   const handleLogout = () => {
     storageService.logout();
     setUser(null);
+    setIsAuthenticated(false);
+    setShowLanding(false);
     setActiveTab('dashboard');
     setActiveSession(null);
     setIsSidebarOpen(false);
@@ -83,7 +120,7 @@ const App: React.FC = () => {
     triggerNotification(`Success! Gained ${xpGained} XP and +0.1 Rep`);
   };
 
-  const handleLogin = (name: string, college: string, branch: string, strongSkills: string[], weakSkills: string[]) => {
+  const handleProfileSetup = (name: string, college: string, branch: string, strongSkills: string[], weakSkills: string[]) => {
     let updatedUser: Student;
     
     if (user) {
@@ -119,6 +156,7 @@ const App: React.FC = () => {
     storageService.updateUser(updatedUser);
     setUser(updatedUser);
     setIsLoginModalOpen(false);
+    setShowLanding(false); // Move to dashboard after profile is set up
     triggerNotification(`Hello, ${name.split(' ')[0]}! Neural Link Established.`);
   };
 
@@ -129,21 +167,30 @@ const App: React.FC = () => {
     </div>
   );
 
-  if (!user) return (
-    <div className={`${isDark ? 'dark' : ''}`}>
-      <LoginModal 
-        isOpen={isLoginModalOpen} 
-        onClose={() => setIsLoginModalOpen(false)} 
-        onLogin={handleLogin} 
-        currentUser={null} 
-      />
-      <LandingPage onGetStarted={() => setIsLoginModalOpen(true)} />
-    </div>
-  );
+  // Phase 1: Authentication
+  if (!isAuthenticated) {
+    return <AuthPage onLogin={handleLoginSuccess} />;
+  }
 
+  // Phase 2: Landing Bridge
+  if (showLanding) {
+    return (
+      <div className={`${isDark ? 'dark' : ''}`}>
+        <LoginModal 
+          isOpen={isLoginModalOpen} 
+          onClose={() => setIsLoginModalOpen(false)} 
+          onLogin={handleProfileSetup} 
+          currentUser={user} 
+        />
+        <LandingPage onGetStarted={handleGetStarted} />
+      </div>
+    );
+  }
+
+  // Phase 3: Main App Interface
   return (
     <div className={`${isDark ? 'text-slate-100 bg-slate-950' : 'text-slate-900 bg-[#f8faff]'} min-h-screen transition-colors duration-500`}>
-      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={handleLogin} currentUser={user} />
+      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={handleProfileSetup} currentUser={user} />
       
       {notification && (
         <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[110] animate-in slide-in-from-top-10 duration-500 pointer-events-none">
@@ -159,7 +206,7 @@ const App: React.FC = () => {
           <button onClick={() => setIsSidebarOpen(true)} className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm"><Menu size={20} /></button>
           <div className="flex items-center gap-2"><Zap size={22} className="text-indigo-600 dark:text-cyan-400 fill-current" /><span className="font-black text-xl tracking-tighter">SkillSwap</span></div>
           <button onClick={() => setIsLoginModalOpen(true)} className="relative group">
-            <img src={user.avatar} className="w-10 h-10 rounded-2xl object-cover ring-2 ring-indigo-500 transition-transform active:scale-90" />
+            <img src={user?.avatar || REQUESTED_AVATAR_URL} className={`w-10 h-10 rounded-2xl object-cover ring-2 ring-indigo-500 transition-transform active:scale-90 ${isSyncing ? 'animate-pulse' : ''}`} />
             <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></div>
           </button>
         </div>
@@ -175,14 +222,22 @@ const App: React.FC = () => {
              <div className={`mx-auto max-w-7xl glass min-h-[85vh] rounded-[2.5rem] md:rounded-[4rem] border-white/50 dark:border-white/5 shadow-2xl overflow-hidden transition-all relative ${activeSession ? 'md:max-w-full' : ''}`}>
                
                {!activeSession && (
-                 <div className="absolute top-8 right-8 z-30 hidden md:block">
-                   <button 
-                    onClick={() => setIsLoginModalOpen(true)} 
-                    className="flex items-center gap-4 px-6 py-4 glass text-slate-900 dark:text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest border-indigo-100 dark:border-white/10 hover:border-indigo-600 hover:scale-105 active:scale-95 transition-all shadow-sm"
-                   >
-                     <User size={16} className="text-indigo-600" />
-                     <span>Network Identity</span>
-                   </button>
+                 <div className="absolute top-8 right-8 z-30 hidden md:flex items-center gap-4">
+                    <button 
+                      onClick={handleSync}
+                      disabled={isSyncing}
+                      className="flex items-center gap-3 px-6 py-4 glass text-slate-900 dark:text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest border-indigo-100 dark:border-white/10 hover:border-indigo-600 hover:scale-105 active:scale-95 transition-all shadow-sm"
+                    >
+                      {isSyncing ? <Loader2 size={16} className="animate-spin text-indigo-600" /> : <RefreshCcw size={16} className="text-indigo-600" />}
+                      <span>{isSyncing ? 'Syncing...' : 'Neural Sync'}</span>
+                    </button>
+                    <button 
+                      onClick={() => setIsLoginModalOpen(true)} 
+                      className="flex items-center gap-4 px-6 py-4 glass text-slate-900 dark:text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest border-indigo-100 dark:border-white/10 hover:border-indigo-600 hover:scale-105 active:scale-95 transition-all shadow-sm"
+                    >
+                      <User size={16} className="text-indigo-600" />
+                      <span>Profile</span>
+                    </button>
                  </div>
                )}
 
@@ -190,7 +245,7 @@ const App: React.FC = () => {
                  <SessionModule partner={activeSession.partner} skill={activeSession.skill} onFinish={handleFinishSession} onCancel={() => setActiveSession(null)} />
                ) : (
                  <div className="pb-24 md:pb-0">
-                    {activeTab === 'dashboard' && <Dashboard onStartSession={handleStartSession} />}
+                    {activeTab === 'dashboard' && <Dashboard onStartSession={handleStartSession} isSyncing={isSyncing} />}
                     {activeTab === 'matching' && <Matching onStartSession={handleStartSession} />}
                     {activeTab === 'leaderboard' && <Leaderboard />}
                     {activeTab === 'assistant' && <AIAssistant />}
