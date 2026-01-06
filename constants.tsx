@@ -1,6 +1,6 @@
 
 import { Student, Badge, SkillCategory } from './types';
-import { Layout, Users, Book, Trophy, Target } from 'lucide-react';
+import { Layout, Users, Book, Trophy, Target, MessageSquareCode } from 'lucide-react';
 
 export const SKILL_CATEGORIES: SkillCategory[] = [
   'Development', 'AI & Data', 'Design', 'Academics', 'Soft Skills'
@@ -30,6 +30,8 @@ export const SKILL_MAP: Record<string, SkillCategory> = {
   'Communication': 'Soft Skills',
   'Programming': 'Development'
 };
+
+const DEFAULT_AVATAR = "https://api.dicebear.com/7.x/avataaars/svg?seed=neutral";
 
 export const BADGES: Badge[] = [
   { id: 'b1', name: 'Eagle Eye', icon: '🦅', description: 'Spotting 10 errors in sessions' },
@@ -149,4 +151,5 @@ export const NAV_ITEMS = [
   { id: 'sessions', label: 'History', icon: Book },
   { id: 'leaderboard', label: 'Rankings', icon: Trophy },
   { id: 'marketplace', label: 'Assets', icon: Target },
+  { id: 'assistant', label: 'AI Assistant', icon: MessageSquareCode },
 ];

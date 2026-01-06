@@ -1,10 +1,10 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { QuizQuestion } from "../types";
+import { QuizQuestion } from "./types";
 
 export const geminiService = {
   generateQuiz: async (skill: string): Promise<QuizQuestion[]> => {
-    // Create a new instance right before making an API call to ensure it uses the latest key.
+    // Standard initialization as per guidelines
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     try {
       const response = await ai.models.generateContent({
@@ -33,11 +33,7 @@ export const geminiService = {
     } catch (error: any) {
       console.error("Gemini Quiz Error:", error);
       
-      // If quota is exhausted, we provide mock data so the user can still test the flow.
-      if (error?.message?.includes('429') || error?.message?.includes('RESOURCE_EXHAUSTED')) {
-        console.warn("Quota exhausted. Using fallback quiz questions. Please select a personal API key if this persists.");
-      }
-
+      // Fallback data if API fails
       return [
         {
           question: `Which of these is a core principle of ${skill}?`,
@@ -65,12 +61,26 @@ export const geminiService = {
         model: 'gemini-3-flash-preview',
         contents: `Based on a student learning ${skills.join(', ')}, provide one short, motivational 1-sentence analytical insight for their dashboard.`,
       });
-      return response.text?.trim() || "Keep pushing your boundaries in " + skills[0] + "!";
+      return response.text?.trim() || "Your learning momentum is high!";
     } catch (error: any) {
-      if (error?.message?.includes('429')) {
-        return "Your learning momentum is high! Consider switching to a personal API key for uninterrupted insights.";
-      }
       return "Every session brings you closer to mastery. Keep it up!";
+    }
+  },
+
+  askAssistant: async (query: string): Promise<string> => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: query,
+        config: {
+          systemInstruction: "You are a friendly AI Mentor. You MUST answer in 1-2 very short sentences. Use extremely simple words for a beginner. No complex jargon. If you need to list something, use only 2 bullet points. Be professional but very concise.",
+        }
+      });
+      return response.text || "I am processing your query. Please rephrase for better results.";
+    } catch (error: any) {
+      console.error("Assistant Error:", error);
+      return "The connection is currently busy. Please try again in a moment.";
     }
   }
 };

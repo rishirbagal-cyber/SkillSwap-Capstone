@@ -7,9 +7,10 @@ import SessionModule from './components/SessionModule';
 import Leaderboard from './components/Leaderboard';
 import LoginModal from './components/LoginModal';
 import LandingPage from './components/LandingPage';
+import AIAssistant from './components/AIAssistant';
 import { storageService } from './services/storageService';
 import { Student } from './types';
-import { Menu, Zap, Bell, Layout, Users, Trophy, Target, User, Ghost } from 'lucide-react';
+import { Menu, Zap, Bell, Layout, Users, Trophy, Target, User, Ghost, MessageSquareCode } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -20,6 +21,8 @@ const App: React.FC = () => {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  const REQUESTED_AVATAR_URL = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSq4FbeFfJID8_uH9lU0Y3_i3Uf_f4vO_2rCw&s";
 
   useEffect(() => {
     storageService.init();
@@ -84,7 +87,15 @@ const App: React.FC = () => {
     let updatedUser: Student;
     
     if (user) {
-      updatedUser = { ...user, name, college, branch, strongSkills, weakSkills };
+      updatedUser = { 
+        ...user, 
+        name, 
+        college, 
+        branch, 
+        strongSkills, 
+        weakSkills,
+        avatar: REQUESTED_AVATAR_URL 
+      };
     } else {
       updatedUser = {
         id: `user-${Date.now()}`,
@@ -99,7 +110,7 @@ const App: React.FC = () => {
         skillReputation: 1,
         points: 0,
         rank: 'Novice',
-        avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${name}`,
+        avatar: REQUESTED_AVATAR_URL,
         badges: [],
         streak: 0
       };
@@ -182,6 +193,7 @@ const App: React.FC = () => {
                     {activeTab === 'dashboard' && <Dashboard onStartSession={handleStartSession} />}
                     {activeTab === 'matching' && <Matching onStartSession={handleStartSession} />}
                     {activeTab === 'leaderboard' && <Leaderboard />}
+                    {activeTab === 'assistant' && <AIAssistant />}
                     {activeTab === 'sessions' && (
                       <div className="h-[70vh] flex flex-col items-center justify-center text-center p-12 space-y-6">
                         <div className="w-24 h-24 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 rounded-[2.5rem] flex items-center justify-center animate-bounce shadow-xl shadow-indigo-100/50 dark:shadow-none">
@@ -214,7 +226,8 @@ const App: React.FC = () => {
             { id: 'dashboard', icon: Layout },
             { id: 'matching', icon: Users },
             { id: 'leaderboard', icon: Trophy },
-            { id: 'marketplace', icon: Target }
+            { id: 'marketplace', icon: Target },
+            { id: 'assistant', icon: MessageSquareCode }
           ].map(item => (
             <button key={item.id} onClick={() => handleTabChange(item.id)} className={`p-3 rounded-2xl transition-all ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-xl scale-110' : 'text-slate-400'}`}><item.icon size={20} /></button>
           ))}

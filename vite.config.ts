@@ -9,7 +9,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, '.', '');
+    // Load env file based on `mode` in the current working directory.
+    // Set the third parameter to '' to load all envs regardless of the `VITE_` prefix.
+    const env = loadEnv(mode, process.cwd(), '');
+    
     return {
       server: {
         port: 3000,
@@ -17,8 +20,8 @@ export default defineConfig(({ mode }) => {
       },
       plugins: [react()],
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        // Ensure process.env.API_KEY is available in the browser
+        'process.env.API_KEY': JSON.stringify(env.API_KEY || env.GEMINI_API_KEY),
       },
       resolve: {
         alias: {
