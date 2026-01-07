@@ -1,6 +1,5 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { geminiService } from '../services/geminiService';
 import { Send, Sparkles, BrainCircuit, Bot, User, Loader2, Zap, ArrowRight } from 'lucide-react';
 
 interface Message {
@@ -24,21 +23,28 @@ const AIAssistant: React.FC = () => {
 
   const handleSend = async () => {
     if (!input.trim() || isTyping) return;
-
+  
     const userMsg = input.trim();
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setIsTyping(true);
-
+  
     try {
-      const response = await geminiService.askAssistant(userMsg);
-      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+      const response = await fetch("http://localhost:5000/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: userMsg })
+      });
+  
+      const data = await response.json();
+      setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
     } catch (error) {
       setMessages(prev => [...prev, { role: 'assistant', content: "Neural handshake failed. My circuits are currently busy." }]);
     } finally {
       setIsTyping(false);
     }
   };
+  
 
   return (
     <div className="flex flex-col h-[75vh] animate-in fade-in duration-700">

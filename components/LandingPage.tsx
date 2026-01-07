@@ -13,63 +13,43 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted }) => {
   };
 
   return (
-    <div className="landing-wrapper">
-      <section className="hero-section">
-        <h1 className="hero-headline">
-          Swap Skills. <br />
-          <span>Grow Together.</span>
-        </h1>
-        <p className="hero-subtitle">
-          The high-impact peer learning network for students. 
-          Trade what you know for what you want to learn.
-        </p>
-        <div className="cta-group">
-          <button onClick={onGetStarted} className="btn-primary">
-            Get Started <ArrowRight size={18} style={{ marginLeft: '8px' }} />
-          </button>
-          <button onClick={scrollToFeatures} className="btn-secondary">
-            Explore Skills <MousePointer2 size={18} style={{ marginLeft: '8px' }} />
-          </button>
-        </div>
-      </section>
-
-      <section id="features" className="features-section">
-        <div className="features-grid">
-          <div className="feature-card">
-            <div className="feature-icon-wrapper">
-              <Users size={32} />
-            </div>
-            <h3>Find Skill Partners</h3>
-            <p>Our neural matching algorithm pairs you with the perfect mentor based on your specific learning targets.</p>
-          </div>
-
-          <div className="feature-card">
-            <div className="feature-icon-wrapper">
-              <Zap size={32} />
-            </div>
-            <h3>Exchange Knowledge</h3>
-            <p>Direct peer-to-peer exchange where teaching one hour earns you one hour of learning from an expert.</p>
-          </div>
-
-          <div className="feature-card">
-            <div className="feature-icon-wrapper">
-              <Globe size={32} />
-            </div>
-            <h3>Online & Offline</h3>
-            <p>Meet in person at campus hubs or stream sessions through our integrated neural video collab tools.</p>
-          </div>
-
-          <div className="feature-card">
-            <div className="feature-icon-wrapper">
-              <Award size={32} />
-            </div>
-            <h3>Build Your Profile</h3>
-            <p>Earn XP, unlock rare badges, and build a verified reputation as a top-tier peer educator.</p>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-950 via-slate-900 to-black text-white flex items-center justify-center">
+      <div className="max-w-5xl w-full px-8 grid md:grid-cols-2 gap-12 items-center">
+        
+        <div className="space-y-8">
+          <h1 className="text-5xl font-black leading-tight tracking-tight">
+            Learn Faster.<br />
+            Teach Smarter.<br />
+            <span className="text-indigo-500">Grow Together.</span>
+          </h1>
+          
+          <p className="text-slate-400 text-lg max-w-lg">
+            SkillSwap connects students to learn, teach and grow through real collaboration.
+            Build your skills, earn reputation, and rise together.
+          </p>
+  
+          <div className="flex gap-4">
+            <button
+              onClick={onGetStarted}
+              className="px-8 py-4 rounded-2xl bg-indigo-600 font-black text-white hover:scale-105 transition"
+            >
+              Get Started
+            </button>
+  
+            <button className="px-8 py-4 rounded-2xl border border-white/20 hover:bg-white/10 transition">
+              Watch Demo
+            </button>
           </div>
         </div>
-      </section>
+  
+        <div className="hidden md:block">
+          <div className="relative w-full h-[400px] rounded-3xl bg-white/5 border border-white/10 backdrop-blur-xl shadow-2xl" />
+        </div>
+  
+      </div>
     </div>
   );
+  
 };
 
 export default LandingPage;
