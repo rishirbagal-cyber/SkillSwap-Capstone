@@ -30,7 +30,13 @@ const AIAssistant: React.FC = () => {
     setIsTyping(true);
   
     try {
-      const response = await fetch("http://localhost:5000/api/chat", {
+      const API_URL =
+        import.meta.env.MODE === "development"
+          ? "http://localhost:5000"
+          : import.meta.env.VITE_AI_SERVER_URL;
+
+      const response = await fetch(`${API_URL}/api/chat`, {
+
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMsg })

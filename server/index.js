@@ -29,6 +29,9 @@ app.post("/api/chat", async (req, res) => {
   }
 });
 
-app.listen(5000, () => {
-  console.log("AI Server running at http://localhost:5000");
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => {
+  console.log(`AI Server running on port ${PORT}`);
 });
+
