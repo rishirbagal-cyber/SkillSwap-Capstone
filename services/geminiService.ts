@@ -1,6 +1,7 @@
 import { QuizQuestion, RoadmapStep, LearningResource } from "../types";
 
-const API_BASE = "http://localhost:5000";
+const API_BASE = "https://skillswap-ai-backend-szw4.onrender.com";
+
 
 
 export const geminiService = {
