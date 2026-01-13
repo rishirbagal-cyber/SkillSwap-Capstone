@@ -2,6 +2,14 @@ import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
+import cors from "cors";
+
+app.use(cors({
+  origin: "https://skillswap-grow.netlify.app",
+  methods: ["GET", "POST"],
+  credentials: true
+}));
+
 
 dotenv.config();
 
