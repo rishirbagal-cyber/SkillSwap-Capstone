@@ -39,11 +39,11 @@ const AIAssistant: React.FC = () => {
 
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg })
+        body: JSON.stringify({ query: userMsg })
       });
   
       const data = await response.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
     } catch (error) {
       setMessages(prev => [...prev, { role: 'assistant', content: "Neural handshake failed. My circuits are currently busy." }]);
     } finally {

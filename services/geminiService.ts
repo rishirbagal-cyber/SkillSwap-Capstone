@@ -1,6 +1,7 @@
 import { QuizQuestion, RoadmapStep, LearningResource } from "../types";
 
-const API_BASE = "https://skillswap-g-ai.onrender.com";
+const API_BASE = "http://localhost:5000";
+
 
 export const geminiService = {
   generateQuiz: async (skill: string): Promise<QuizQuestion[]> => {
