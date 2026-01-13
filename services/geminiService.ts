@@ -3,7 +3,6 @@ import { QuizQuestion, RoadmapStep, LearningResource } from "../types";
 const API_BASE = "https://skillswap-ai-backend-szw4.onrender.com";
 
 
-
 export const geminiService = {
   generateQuiz: async (skill: string): Promise<QuizQuestion[]> => {
     const res = await fetch(`${API_BASE}/api/quiz`, {
