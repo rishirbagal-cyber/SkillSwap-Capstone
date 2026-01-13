@@ -5,7 +5,7 @@ import { QuizQuestion } from "./types";
 export const geminiService = {
   generateQuiz: async (skill: string): Promise<QuizQuestion[]> => {
     // Standard initialization as per guidelines
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.OPENAI_API_KEY });
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -55,7 +55,7 @@ export const geminiService = {
   },
 
   getGrowthInsight: async (skills: string[]): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.OPENAI_API_KEY });
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -68,7 +68,7 @@ export const geminiService = {
   },
 
   askAssistant: async (query: string): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.OPENAI_API_KEY });
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',

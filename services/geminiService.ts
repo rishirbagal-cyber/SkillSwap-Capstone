@@ -4,7 +4,7 @@ import { QuizQuestion, RoadmapStep, LearningResource } from "../types";
 
 export const geminiService = {
   generateQuiz: async (skill: string): Promise<QuizQuestion[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.OPENAI_API_KEY });
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -52,7 +52,7 @@ export const geminiService = {
   },
 
   getLearningRoadmap: async (skill: string): Promise<RoadmapStep[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.OPENAI_API_KEY });
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -85,7 +85,7 @@ export const geminiService = {
   },
 
   getWebResources: async (skill: string): Promise<LearningResource[]> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.OPENAI_API_KEY });
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -113,7 +113,7 @@ export const geminiService = {
   },
 
   getGrowthInsight: async (skills: string[]): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.OPENAI_API_KEY });
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
@@ -126,7 +126,7 @@ export const geminiService = {
   },
 
   askAssistant: async (query: string): Promise<string> => {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: process.env.OPENAI_API_KEY });
     try {
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
