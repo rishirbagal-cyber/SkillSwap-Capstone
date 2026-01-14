@@ -40,14 +40,36 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
   // Load content using skill string
   const loadAIContent = async () => {
     setIsLoadingAI(true);
-    const [map, res] = await Promise.all([
-      geminiService.getLearningRoadmap(skill),
-      geminiService.getWebResources(skill)
-    ]);
-    setRoadmap(map);
-    setResources(res);
-    setIsLoadingAI(false);
+  
+    try {
+      const [map, res] = await Promise.allSettled([
+        geminiService.getLearningRoadmap(skill),
+        geminiService.getWebResources(skill)
+      ]);
+  
+      if (map.status === 'fulfilled') {
+        setRoadmap(map.value);
+      } else {
+        console.error("Roadmap error:", map.reason);
+        setRoadmap([]);
+      }
+  
+      if (res.status === 'fulfilled') {
+        setResources(res.value);
+      } else {
+        console.error("Resources error:", res.reason);
+        setResources([]);
+      }
+  
+    } catch (err) {
+      console.error("AI content load failed:", err);
+      setRoadmap([]);
+      setResources([]);
+    } finally {
+      setIsLoadingAI(false);
+    }
   };
+  
 
   const handleStart = (m: SessionMode) => {
     setMode(m);
