@@ -7,23 +7,16 @@ dotenv.config();
 
 const app = express();
 
-const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:5173",
-  "https://skillswap-grow.netlify.app"
-];
-
 app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("CORS blocked"));
-    }
-  },
+  origin: [
+    "http://localhost:3000",
+    "http://localhost:5173",
+    /\.netlify\.app$/
+  ],
   methods: ["GET", "POST"],
-  credentials: true
+  credentials: false
 }));
+
 
 app.use(express.json());
 
