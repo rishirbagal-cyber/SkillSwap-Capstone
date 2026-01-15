@@ -1,5 +1,4 @@
 import express from "express";
-import cors from "cors";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 
@@ -7,27 +6,20 @@ dotenv.config();
 
 const app = express();
 
-const corsOptions = {
-  origin: "https://skillswap-grow.netlify.app",
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-};
-
-app.use(cors(corsOptions));
-
+/* 🔐 HARD CORS LOCK — DO NOT MOVE */
 app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "https://skillswap-grow.netlify.app");
-  res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Origin", "https://skillswap-grow.netlify.app");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
   if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
+    return res.status(200).end();
   }
 
   next();
 });
 
-
+/* Body parser AFTER CORS */
 app.use(express.json());
 
 const client = new OpenAI({
