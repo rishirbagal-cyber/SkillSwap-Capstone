@@ -11,11 +11,14 @@ app.use(cors({
   origin: [
     "http://localhost:3000",
     "http://localhost:5173",
-    /\.netlify\.app$/
+    "https://skillswap-grow.netlify.app"
   ],
   methods: ["GET", "POST"],
-  credentials: false
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
+
+app.options("*", cors());
+
 
 
 app.use(express.json());
