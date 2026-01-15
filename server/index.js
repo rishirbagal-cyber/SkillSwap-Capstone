@@ -7,19 +7,14 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors({
-  origin: [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "https://skillswap-grow.netlify.app"
-  ],
-  methods: ["GET", "POST"],
+const corsOptions = {
+  origin: "https://skillswap-grow.netlify.app",
+  methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
-}));
+};
 
-app.options("*", cors());
-
-
+app.use(cors(corsOptions));
+app.options("/api/*", cors(corsOptions));
 
 app.use(express.json());
 
