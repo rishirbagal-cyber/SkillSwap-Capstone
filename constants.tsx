@@ -43,7 +43,7 @@ export const BADGES: Badge[] = [
 export const MOCK_STUDENTS: Student[] = [
   {
     id: 's1',
-    name: 'Atharv balsih',
+    name: 'Atharv Hargude',
     college: 'Engineering Institute',
     branch: 'Computer Science',
     year: 3,
@@ -60,7 +60,7 @@ export const MOCK_STUDENTS: Student[] = [
   },
   {
     id: 's2',
-    name: 'Om Noobda',
+    name: 'Om jagtap',
     college: 'Tech University',
     branch: 'Information Technology',
     year: 2,
@@ -77,7 +77,7 @@ export const MOCK_STUDENTS: Student[] = [
   },
   {
     id: 's3',
-    name: 'Shubham Gandu',
+    name: 'Shubham Reddy',
     college: 'State Tech',
     branch: 'Software Engineering',
     year: 4,
@@ -94,7 +94,7 @@ export const MOCK_STUDENTS: Student[] = [
   },
   {
     id: 's4',
-    name: 'Yashraj Bhaira',
+    name: 'Yashraj Jagtap',
     college: 'Design School',
     branch: 'Interaction Design',
     year: 1,
@@ -111,7 +111,7 @@ export const MOCK_STUDENTS: Student[] = [
   },
   {
     id: 's5',
-    name: 'Varad Kamchor',
+    name: 'Varad Shahane',
     college: 'Tech University',
     branch: 'AI Engineering',
     year: 3,
@@ -128,7 +128,7 @@ export const MOCK_STUDENTS: Student[] = [
   },
   {
     id: 's6',
-    name: 'Yashwardhan Tingu',
+    name: 'Yashwardhan Chaudhari',
     college: 'Liberal Arts College',
     branch: 'Communication',
     year: 2,
