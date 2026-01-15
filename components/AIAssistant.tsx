@@ -33,7 +33,8 @@ const AIAssistant: React.FC = () => {
       const API_URL =
         import.meta.env.MODE === "development"
           ? "http://localhost:5000"
-          : import.meta.env.VITE_AI_SERVER_URL;
+          : "https://skillswap-ai-backend-szw4.onrender.com";
+
 
       const response = await fetch(`${API_URL}/api/chat`, {
 
