@@ -1,11 +1,26 @@
-
-import React from 'react';
-import { storageService } from '../services/storageService';
-import { Award, Crown, Medal } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { firestoreService } from '../services/firestoreService';
+import { auth } from '../services/firebase';
+import { Student } from '../types';
+import { Award, Crown } from 'lucide-react';
+import { DEFAULT_AVATAR } from '../constants';
 
 const Leaderboard: React.FC = () => {
-  const students = [...storageService.getStudents()].sort((a, b) => b.points - a.points);
-  const currentUser = storageService.getCurrentUser();
+  const [students, setStudents] = useState<Student[]>([]);
+  const [currentUser, setCurrentUser] = useState<Student | null>(null);
+
+  useEffect(() => {
+    if (auth.currentUser) {
+      const unsubUser = firestoreService.subscribeToUser(auth.currentUser.uid, setCurrentUser);
+      const unsubUsers = firestoreService.subscribeToUsers((allUsers) => {
+        setStudents(allUsers.sort((a, b) => (b.points || 0) - (a.points || 0)));
+      });
+      return () => {
+        unsubUser();
+        unsubUsers();
+      };
+    }
+  }, []);
 
   return (
     <div className="p-5 md:p-10 max-w-5xl mx-auto space-y-8 animate-in fade-in duration-700">
@@ -21,15 +36,15 @@ const Leaderboard: React.FC = () => {
             {i === 0 && <Crown className="absolute top-4 right-4 text-yellow-400" size={28} />}
             <div className="flex flex-col items-center">
               <div className="relative mb-4">
-                <img src={student.avatar} className="w-20 h-20 md:w-24 md:h-24 rounded-2xl md:rounded-3xl object-cover ring-4 ring-white dark:ring-slate-700 shadow-lg" />
+                <img src={student.avatar || DEFAULT_AVATAR} className="w-20 h-20 md:w-24 md:h-24 rounded-2xl md:rounded-3xl object-cover ring-4 ring-white dark:ring-slate-700 shadow-lg" />
                 <div className={`absolute -bottom-2 -right-2 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-white shadow-lg text-sm ${i === 0 ? 'bg-yellow-400' : i === 1 ? 'bg-slate-300' : 'bg-amber-600'}`}>
                   {i + 1}
                 </div>
               </div>
               <h4 className="text-lg md:text-xl font-bold text-slate-900 dark:text-white">{student.name}</h4>
-              <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mb-4">{student.branch}</p>
+              <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mb-4">{student.college}</p>
               <div className="px-5 py-2 bg-indigo-600 text-white rounded-xl md:rounded-2xl font-black text-base md:text-lg shadow-xl shadow-indigo-100 dark:shadow-none">
-                {student.points} XP
+                {student.points || 0} XP
               </div>
             </div>
           </div>
@@ -50,11 +65,11 @@ const Leaderboard: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
               {students.map((student, i) => (
-                <tr key={student.id} className={`hover:bg-indigo-50/30 dark:hover:bg-white/5 transition-colors ${student.id === currentUser.id ? 'bg-indigo-50/50 dark:bg-indigo-500/10' : ''}`}>
+                <tr key={student.id} className={`hover:bg-indigo-50/30 dark:hover:bg-white/5 transition-colors ${currentUser && student.id === currentUser.id ? 'bg-indigo-50/50 dark:bg-indigo-500/10' : ''}`}>
                   <td className="px-6 py-4 font-bold text-slate-500 dark:text-slate-400">#{i + 1}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <img src={student.avatar} className="w-9 h-9 rounded-xl object-cover" />
+                      <img src={student.avatar || DEFAULT_AVATAR} className="w-9 h-9 rounded-xl object-cover" />
                       <div>
                         <p className="font-bold text-slate-900 dark:text-white text-sm">{student.name}</p>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[150px]">{student.college}</p>
@@ -64,10 +79,10 @@ const Leaderboard: React.FC = () => {
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-center gap-1 text-orange-500 font-bold text-xs">
                       <Award size={14} />
-                      {student.teachingScore}
+                      {student.teachingScore || 0}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-right font-black text-indigo-600 dark:text-cyan-400 text-sm">{student.points}</td>
+                  <td className="px-6 py-4 text-right font-black text-indigo-600 dark:text-cyan-400 text-sm">{student.points || 0}</td>
                 </tr>
               ))}
             </tbody>

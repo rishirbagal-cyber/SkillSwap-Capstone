@@ -49,19 +49,6 @@ const MainApp: React.FC<{
   // Listen to Firestore User Profile
   useEffect(() => {
     if (firebaseUser) {
-      // Force update all users to have the professional avatar
-      import('firebase/firestore').then(({ collection, getDocs, updateDoc, doc }) => {
-        import('./services/firebase').then(({ db }) => {
-          getDocs(collection(db, 'users')).then((snap) => {
-            snap.forEach(userDoc => {
-              if (userDoc.data().avatar !== DEFAULT_AVATAR) {
-                updateDoc(doc(db, 'users', userDoc.id), { avatar: DEFAULT_AVATAR });
-              }
-            });
-          });
-        });
-      });
-
       const unsubscribe = firestoreService.subscribeToUser(firebaseUser.uid, (data) => {
         if (data) {
           setUser(data);
@@ -160,25 +147,37 @@ const MainApp: React.FC<{
     triggerNotification(`Success! Gained ${xpGained} XP and +0.1 Rep`);
   };
 
-  const handleProfileSetup = async (name: string, college: string, branch: string, strongSkills: string[], weakSkills: string[]) => {
-    if (!firebaseUser) return;
+  const handleProfileSetup = async (name: string, college: string, branch: string, strongSkills: string[], weakSkills: string[], avatar: string, bio: string) => {
+    if (!firebaseUser) throw new Error("No authenticated user found.");
 
     const updatedUser: Partial<Student> = {
-      name, college, branch, strongSkills, weakSkills
+      id: firebaseUser.uid,
+      uid: firebaseUser.uid,
+      name, college, branch, strongSkills, weakSkills, avatar, bio,
+      profileComplete: true
     };
+    
+    if (firebaseUser.email) {
+      updatedUser.email = firebaseUser.email;
+    }
 
     if (!user) {
       Object.assign(updatedUser, {
         teachingScore: 0, learningScore: 0, skillReputation: 1,
         points: 0, rank: 'Novice', badges: [], streak: 0,
-        completedTopics: [], sessionsCount: 0, avatar: DEFAULT_AVATAR
+        completedTopics: [], sessionsCount: 0
       });
     }
 
-    await firestoreService.updateUser(firebaseUser.uid, updatedUser);
-    setIsLoginModalOpen(false);
-    setShowLanding(false);
-    triggerNotification(`Hello, ${name.split(' ')[0]}! Neural Link Established.`);
+    try {
+      await firestoreService.updateUser(firebaseUser.uid, updatedUser);
+      setIsLoginModalOpen(false);
+      setShowLanding(false);
+      triggerNotification(`Hello, ${name.split(' ')[0]}! Neural Link Established.`);
+    } catch (err) {
+      console.error("Profile Setup Error:", err);
+      throw err;
+    }
   };
 
   if (!isInitialized) return (

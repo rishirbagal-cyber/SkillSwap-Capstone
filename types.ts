@@ -19,6 +19,7 @@ export interface Student {
   id: string;
   uid?: string; // Firebase Auth UID
   name: string;
+  email?: string;
   college: string;
   branch: string;
   year: number;
@@ -30,10 +31,12 @@ export interface Student {
   points: number;
   rank: string;
   avatar: string;
+  bio?: string;
   badges: Badge[];
   streak: number;
   completedTopics?: string[];
   sessionsCount?: number;
+  profileComplete?: boolean;
 }
 
 export interface Match {

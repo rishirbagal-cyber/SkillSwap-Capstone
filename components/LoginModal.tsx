@@ -1,12 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
-import { X, User, GraduationCap, BookOpen, Zap, Sparkles, Plus, Trash2 } from 'lucide-react';
+import { X, User, GraduationCap, BookOpen, Zap, Sparkles, Plus, Trash2, Link as LinkIcon, FileText, Loader2, AlertCircle } from 'lucide-react';
 import { Student } from '../types';
+import { DEFAULT_AVATAR } from '../constants';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (name: string, college: string, branch: string, strongSkills: string[], weakSkills: string[]) => void;
+  onLogin: (name: string, college: string, branch: string, strongSkills: string[], weakSkills: string[], avatar: string, bio: string) => Promise<void>;
   currentUser: Student | null;
 }
 
@@ -14,25 +14,36 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
   const [name, setName] = useState('');
   const [college, setCollege] = useState('');
   const [branch, setBranch] = useState('');
+  const [avatar, setAvatar] = useState('');
+  const [bio, setBio] = useState('');
   const [strongSkills, setStrongSkills] = useState<string[]>([]);
   const [weakSkills, setWeakSkills] = useState<string[]>([]);
   const [newSkill, setNewSkill] = useState('');
   const [skillType, setSkillType] = useState<'strong' | 'weak'>('strong');
+  
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (currentUser) {
-      setName(currentUser.name);
-      setCollege(currentUser.college);
-      setBranch(currentUser.branch);
-      setStrongSkills(currentUser.strongSkills);
-      setWeakSkills(currentUser.weakSkills);
+      setName(currentUser.name || '');
+      setCollege(currentUser.college || '');
+      setBranch(currentUser.branch || '');
+      setAvatar(currentUser.avatar || DEFAULT_AVATAR);
+      setBio(currentUser.bio || '');
+      setStrongSkills(currentUser.strongSkills || []);
+      setWeakSkills(currentUser.weakSkills || []);
     } else {
       setName('');
       setCollege('');
       setBranch('');
+      setAvatar(DEFAULT_AVATAR);
+      setBio('');
       setStrongSkills(['Communication']);
       setWeakSkills(['Programming']);
     }
+    setError(null);
+    setIsSaving(false);
   }, [currentUser, isOpen]);
 
   if (!isOpen) return null;
@@ -52,10 +63,21 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
     else setWeakSkills(weakSkills.filter(s => s !== skill));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim()) {
-      onLogin(name, college, branch, strongSkills, weakSkills);
+    if (!name.trim()) {
+      setError("Full Name is required to establish your identity.");
+      return;
+    }
+    
+    setError(null);
+    setIsSaving(true);
+    
+    try {
+      await onLogin(name, college, branch, strongSkills, weakSkills, avatar, bio);
+    } catch (err: any) {
+      setError(err.message || "An error occurred while saving your profile.");
+      setIsSaving(false);
     }
   };
 
@@ -64,13 +86,15 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
       <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300" onClick={onClose} />
       
       <div className="relative w-full max-w-2xl glass p-8 md:p-10 rounded-[3rem] border-white/20 dark:border-white/5 shadow-2xl animate-in zoom-in duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
-        <button onClick={onClose} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-indigo-600 transition-colors">
-          <X size={20} />
-        </button>
+        {currentUser && (
+          <button onClick={onClose} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-indigo-600 transition-colors">
+            <X size={20} />
+          </button>
+        )}
 
         <div className="mb-8 text-center space-y-3">
           <div className="w-16 h-16 bg-indigo-600 rounded-2xl mx-auto flex items-center justify-center text-white shadow-xl shadow-indigo-500/30">
-            <Zap size={32} fill="white" />
+            {currentUser ? <img src={avatar || DEFAULT_AVATAR} className="w-full h-full rounded-2xl object-cover" /> : <Zap size={32} fill="white" />}
           </div>
           <h2 className="text-3xl font-black tracking-tight dark:text-white">
             {currentUser ? 'Neural Identity' : 'Establish Identity'}
@@ -78,11 +102,18 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
           <p className="text-slate-500 text-sm font-medium italic">Configure your peer-exchange parameters</p>
         </div>
 
+        {error && (
+          <div className="mb-6 p-4 glass bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400 rounded-2xl flex items-center gap-3 text-sm font-bold animate-in fade-in slide-in-from-top-2">
+            <AlertCircle size={18} />
+            {error}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Left Column: Basic Info */}
           <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Full Name</label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Full Name *</label>
               <div className="relative group">
                 <User className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
                 <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className="w-full glass pl-14 pr-6 py-4 rounded-2xl outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-slate-900 dark:text-white" />
@@ -90,10 +121,18 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
             </div>
 
             <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Avatar URL</label>
+              <div className="relative group">
+                <LinkIcon className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
+                <input type="url" value={avatar} onChange={(e) => setAvatar(e.target.value)} placeholder="https://..." className="w-full glass pl-14 pr-6 py-4 rounded-2xl outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-slate-900 dark:text-white" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">College</label>
               <div className="relative group">
                 <GraduationCap className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                <input type="text" required value={college} onChange={(e) => setCollege(e.target.value)} placeholder="College" className="w-full glass pl-14 pr-6 py-4 rounded-2xl outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-slate-900 dark:text-white" />
+                <input type="text" value={college} onChange={(e) => setCollege(e.target.value)} placeholder="College" className="w-full glass pl-14 pr-6 py-4 rounded-2xl outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-slate-900 dark:text-white" />
               </div>
             </div>
 
@@ -101,13 +140,21 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Branch</label>
               <div className="relative group">
                 <BookOpen className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                <input type="text" required value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="Branch" className="w-full glass pl-14 pr-6 py-4 rounded-2xl outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-slate-900 dark:text-white" />
+                <input type="text" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="Branch" className="w-full glass pl-14 pr-6 py-4 rounded-2xl outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-slate-900 dark:text-white" />
               </div>
             </div>
           </div>
 
           {/* Right Column: Skills */}
           <div className="space-y-6">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Bio</label>
+              <div className="relative group">
+                <FileText className="absolute left-6 top-6 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
+                <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell us about yourself..." className="w-full glass pl-14 pr-6 py-4 rounded-2xl outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-slate-900 dark:text-white min-h-[100px] resize-none"></textarea>
+              </div>
+            </div>
+
             <div className="space-y-4">
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Skills Network</label>
               <div className="flex gap-2 p-1 bg-slate-100 dark:bg-white/5 rounded-xl">
@@ -137,8 +184,12 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
             </div>
           </div>
 
-          <button type="submit" className="md:col-span-2 w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3">
-            {currentUser ? 'Update Profile' : 'Launch Link'} <Sparkles size={16} />
+          <button type="submit" disabled={isSaving} className="md:col-span-2 w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:hover:scale-100">
+            {isSaving ? (
+              <><Loader2 size={16} className="animate-spin" /> ESTABLISHING LINK...</>
+            ) : (
+              <>{currentUser ? 'Update Profile' : 'Launch Link'} <Sparkles size={16} /></>
+            )}
           </button>
         </form>
       </div>

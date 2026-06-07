@@ -19,19 +19,14 @@ export const firestoreService = {
   // Update or create a user profile
   updateUser: async (uid: string, data: Partial<Student>) => {
     const docRef = doc(db, USERS_COLLECTION, uid);
-    const docSnap = await getDoc(docRef);
     
     // Ensure avatar is never undefined
     const safeData = { ...data };
-    if (!safeData.avatar && (!docSnap.exists() || !docSnap.data().avatar)) {
+    if (!safeData.avatar) {
       safeData.avatar = DEFAULT_AVATAR;
     }
 
-    if (docSnap.exists()) {
-      await updateDoc(docRef, safeData);
-    } else {
-      await setDoc(docRef, safeData);
-    }
+    await setDoc(docRef, safeData, { merge: true });
   },
 
   // Subscribe to all users (for Explore Hub, Leaderboard, etc.)
@@ -55,6 +50,9 @@ export const firestoreService = {
       } else {
         callback(null);
       }
+    }, (error) => {
+      console.error("Error subscribing to user:", error);
+      callback(null);
     });
   }
 };
