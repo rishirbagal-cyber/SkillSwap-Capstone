@@ -1,37 +1,41 @@
-
 import React, { useEffect, useState, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { storageService } from '../services/storageService';
+import { firestoreService } from '../services/firestoreService';
+import { auth } from '../services/firebase';
 import { geminiService } from '../services/geminiService';
 import { 
   Award, BookOpen, Star, TrendingUp, Zap, Target, Flame, 
-  Activity, Sparkles, Clock, CheckCircle, Hand, Globe, Users,
-  BrainCircuit, ArrowRight
+  Activity, Sparkles, Clock, Users, BrainCircuit, ArrowRight, Globe
 } from 'lucide-react';
 import { Student } from '../types';
-
-const data = [
-  { name: 'Mon', score: 120 },
-  { name: 'Tue', score: 300 },
-  { name: 'Wed', score: 200 },
-  { name: 'Thu', score: 450 },
-  { name: 'Fri', score: 600 },
-  { name: 'Sat', score: 550 },
-  { name: 'Sun', score: 700 },
-];
+import { DEFAULT_AVATAR } from '../constants';
 
 interface DashboardProps {
   onStartSession?: (partner: Student, skill: string) => void;
+  isSyncing?: boolean;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ onStartSession }) => {
-  const user = storageService.getCurrentUser();
-  const students = storageService.getStudents().filter(s => s.id !== user?.id);
+const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
+  const [user, setUser] = useState<Student | null>(null);
+  const [students, setStudents] = useState<Student[]>([]);
   const [insight, setInsight] = useState<string>("Syncing neural nodes...");
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
+    if (auth.currentUser) {
+      const unsubUser = firestoreService.subscribeToUser(auth.currentUser.uid, setUser);
+      const unsubUsers = firestoreService.subscribeToUsers((allUsers) => {
+        setStudents(allUsers.filter(s => s.uid !== auth.currentUser?.uid));
+      });
+      return () => {
+        unsubUser();
+        unsubUsers();
+      };
+    }
+  }, []);
+
+  useEffect(() => {
     const fetchInsight = async () => {
       try {
         if (!user) return;
@@ -41,38 +45,68 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession }) => {
         setInsight("Your progress is accelerating across all mastery nodes.");
       }
     };
-    fetchInsight();
+    if (user) fetchInsight();
+  }, [user]);
+
+  const chartData = useMemo(() => {
+    if (!user || !user.points) {
+      return [
+        { name: 'Mon', score: 0 },
+        { name: 'Tue', score: 0 },
+        { name: 'Wed', score: 0 },
+        { name: 'Thu', score: 0 },
+        { name: 'Fri', score: 0 },
+        { name: 'Sat', score: 0 },
+        { name: 'Sun', score: 0 },
+      ];
+    }
+    // Simplistic visual representation of points over the week
+    const base = Math.max(0, user.points - 300);
+    return [
+      { name: 'Mon', score: Math.round(base * 0.1) },
+      { name: 'Tue', score: Math.round(base * 0.25) },
+      { name: 'Wed', score: Math.round(base * 0.4) },
+      { name: 'Thu', score: Math.round(base * 0.5) },
+      { name: 'Fri', score: Math.round(base * 0.7) },
+      { name: 'Sat', score: Math.round(base * 0.85) },
+      { name: 'Sun', score: user.points },
+    ];
   }, [user]);
 
   const recommendedMatches = useMemo(() => {
     if (!user) return [];
     return students.map(s => {
-      const matchSkill = s.strongSkills.find(sk => user.weakSkills.includes(sk));
+      const matchSkill = (s.strongSkills || []).find(sk => (user.weakSkills || []).includes(sk));
       let score = matchSkill ? 70 : 10;
       if (s.college === user.college) score += 20;
       return { 
         partner: s, 
         matchScore: Math.min(100, score),
-        suggestedSkill: matchSkill || s.strongSkills[0]
+        suggestedSkill: matchSkill || (s.strongSkills || [])[0] || ''
       };
     }).sort((a, b) => b.matchScore - a.matchScore).slice(0, 4);
   }, [user, students]);
 
   if (!isMounted || !user) return null;
 
+  const completedTopicsCount = (user.completedTopics || []).length;
+  const sessionsCount = user.sessionsCount || 0;
+
   return (
     <div className="p-6 md:p-10 lg:p-16 space-y-12 animate-in fade-in duration-1000">
       <header className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-10">
         <div className="space-y-6">
           <div className="flex items-center gap-3 px-4 py-2 bg-indigo-600/10 dark:bg-indigo-500/10 rounded-full w-fit border border-indigo-100 dark:border-indigo-500/20">
-            <div className="w-2 h-2 rounded-full bg-indigo-600 animate-ping"></div>
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-700 dark:text-indigo-400">Network Interface Live</span>
+            <div className={`w-2 h-2 rounded-full bg-indigo-600 ${isSyncing ? 'animate-bounce' : 'animate-ping'}`}></div>
+            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-700 dark:text-indigo-400">
+              {isSyncing ? 'Syncing Nodes...' : 'Network Interface Live'}
+            </span>
           </div>
           
           <div className="space-y-3">
             <div className="flex items-center gap-4 text-indigo-600 dark:text-cyan-400">
-               <div className="w-16 h-16 glass rounded-3xl flex items-center justify-center shadow-xl border-white/50">
-                  <img src={user.avatar} className="w-12 h-12 rounded-2xl" />
+               <div className="w-16 h-16 glass rounded-3xl flex items-center justify-center shadow-xl border-white/50 relative overflow-hidden">
+                  <img src={user.avatar || DEFAULT_AVATAR} className={`w-16 h-16 object-cover ${isSyncing ? 'opacity-50' : ''}`} />
                </div>
                <div className="space-y-1">
                   <span className="text-sm font-black uppercase tracking-widest text-slate-400">Status: {user.rank}</span>
@@ -95,17 +129,17 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession }) => {
         <div className="grid grid-cols-2 md:grid-cols-3 gap-6 w-full lg:w-auto">
           <div className="glass p-6 rounded-[2.5rem] border-orange-100 dark:border-orange-500/20 text-center flex flex-col items-center group hover:scale-105 transition-all">
             <Flame className="text-orange-500 mb-2 group-hover:scale-110 transition-transform" size={32} />
-            <div className="text-3xl font-black dark:text-white">{user.streak}</div>
+            <div className="text-3xl font-black dark:text-white">{user.streak || 0}</div>
             <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Daily Streak</div>
           </div>
           <div className="glass p-6 rounded-[2.5rem] border-cyan-100 dark:border-cyan-500/20 text-center flex flex-col items-center group hover:scale-105 transition-all">
             <Zap className="text-cyan-500 mb-2 group-hover:scale-110 transition-transform" size={32} />
-            <div className="text-3xl font-black dark:text-white">{user.points}</div>
+            <div className="text-3xl font-black dark:text-white">{user.points || 0}</div>
             <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Total Power</div>
           </div>
           <div className="hidden md:flex glass p-6 rounded-[2.5rem] border-indigo-100 dark:border-indigo-500/20 text-center flex flex-col items-center group hover:scale-105 transition-all">
             <Globe className="text-indigo-600 mb-2 group-hover:scale-110 transition-transform" size={32} />
-            <div className="text-3xl font-black dark:text-white">#42</div>
+            <div className="text-3xl font-black dark:text-white">#1</div>
             <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Global Rank</div>
           </div>
         </div>
@@ -122,12 +156,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession }) => {
           </button>
         </div>
         <div className="flex overflow-x-auto gap-6 pb-6 custom-scrollbar scroll-smooth px-2">
-          {recommendedMatches.map((m, i) => (
+          {recommendedMatches.length > 0 ? recommendedMatches.map((m, i) => (
             <div key={i} className="neo-card min-w-[300px] p-6 rounded-[2.5rem] flex flex-col gap-6 group hover:border-indigo-600/50 transition-all border-transparent">
               <div className="flex justify-between items-start">
                 <div className="relative">
-                  <img src={m.partner.avatar} className="w-14 h-14 rounded-2xl shadow-lg border-2 border-white dark:border-white/10" />
-                  <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></div>
+                  <img src={m.partner.avatar || DEFAULT_AVATAR} className="w-14 h-14 rounded-2xl shadow-lg border-2 border-white dark:border-white/10" />
                 </div>
                 <div className="px-3 py-1 bg-indigo-50 dark:bg-indigo-500/10 rounded-full text-[9px] font-black text-indigo-600 border border-indigo-100 dark:border-indigo-500/20">
                   {m.matchScore}% Neural Match
@@ -148,12 +181,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession }) => {
                 Instant Sync
               </button>
             </div>
-          ))}
+          )) : (
+            <div className="w-full p-12 glass rounded-3xl text-center text-slate-500 font-bold">
+              The neural network is currently empty. More peers will appear as they join.
+            </div>
+          )}
         </div>
       </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-        {/* Momentum Chart Section - Fixed Overlap */}
+        {/* Momentum Chart Section */}
         <div className="lg:col-span-8 neo-card p-8 md:p-10 rounded-[3rem] md:rounded-[4rem] flex flex-col min-h-[500px] overflow-visible">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 mb-10">
             <h3 className="text-2xl font-black flex items-center gap-4 dark:text-white">
@@ -169,7 +206,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession }) => {
           
           <div className="flex-1 w-full min-h-[300px] relative">
           <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
                 <defs>
                   <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#6366f1" stopOpacity={0.5}/>
@@ -194,10 +231,9 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession }) => {
             </h3>
             <div className="space-y-10 overflow-y-auto pr-2 custom-scrollbar flex-1 max-h-[400px]">
               {[
-                { text: `Profile updated. Target node: ${user.weakSkills[0]}`, time: '2h ago', icon: Target, color: 'text-indigo-500' },
-                { text: 'New Peer Match detected nearby', time: '4h ago', icon: Users, color: 'text-green-500' },
-                { text: 'XP Multiplier active for Academics', time: '1d ago', icon: Award, color: 'text-amber-500' },
-                { text: 'Weekly Digest generated', time: '2d ago', icon: BookOpen, color: 'text-fuchsia-500' },
+                { text: `Profile Synced to Firestore.`, time: 'Now', icon: Target, color: 'text-indigo-500' },
+                { text: `${sessionsCount} active learning sessions.`, time: 'Recent', icon: Users, color: 'text-green-500' },
+                { text: `${completedTopicsCount} topics mastered.`, time: 'Ongoing', icon: BookOpen, color: 'text-amber-500' },
               ].map((act, i) => (
                 <div key={i} className="flex gap-6 items-start group">
                   <div className={`p-3 rounded-2xl bg-white dark:bg-slate-800 ${act.color} group-hover:scale-110 transition-all shadow-md`}>
@@ -215,10 +251,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession }) => {
 
         <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-8">
           {[
-            { label: 'Verified Mastery', val: user.strongSkills.length, icon: BookOpen, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-500/10' },
-            { label: 'Network Reputation', val: user.skillReputation.toFixed(1), icon: Award, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10' },
-            { label: 'Learning Targets', val: user.weakSkills.length, icon: Target, color: 'text-fuchsia-600', bg: 'bg-fuchsia-50 dark:bg-fuchsia-500/10' },
-            { label: 'Mentor Rating', val: user.teachingScore, icon: Star, color: 'text-cyan-600', bg: 'bg-cyan-50 dark:bg-cyan-500/10' }
+            { label: 'Skills Mastered', val: completedTopicsCount, icon: BookOpen, color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-500/10' },
+            { label: 'Network Reputation', val: (user.skillReputation || 1).toFixed(1), icon: Award, color: 'text-amber-500', bg: 'bg-amber-50 dark:bg-amber-500/10' },
+            { label: 'Sessions Completed', val: sessionsCount, icon: Target, color: 'text-fuchsia-600', bg: 'bg-fuchsia-50 dark:bg-fuchsia-500/10' },
+            { label: 'Mentor Rating', val: user.teachingScore || 0, icon: Star, color: 'text-cyan-600', bg: 'bg-cyan-50 dark:bg-cyan-500/10' }
           ].map((s, i) => (
             <div key={i} className="neo-card p-10 rounded-[3rem] flex items-center gap-10 group hover:translate-y-[-5px] transition-all">
               <div className={`p-6 rounded-[2rem] ${s.bg} ${s.color} group-hover:scale-110 transition-all shadow-inner`}>

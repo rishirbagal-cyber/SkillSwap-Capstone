@@ -1,20 +1,21 @@
-
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "./services/firebase";
+import { auth, rtdb } from "./services/firebase";
+import { ref, onDisconnect, set, serverTimestamp as rtdbTimestamp } from "firebase/database";
 import { loginWithGoogle, logout } from "./services/authService";
+import { firestoreService } from "./services/firestoreService";
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import Matching from './components/Matching';
 import SessionModule from './components/SessionModule';
 import Leaderboard from './components/Leaderboard';
+import LearnHub from './components/LearnHub';
 import LoginModal from './components/LoginModal';
 import LandingPage from './components/LandingPage';
-import AuthPage from './components/AuthPage';
 import AIAssistant from './components/AIAssistant';
-import { storageService } from './services/storageService';
 import { Student } from './types';
-import { Menu, Zap, Bell, Layout, Users, Trophy, Target, User, Ghost, MessageSquareCode, RefreshCcw, Loader2 } from 'lucide-react';
+import { Menu, Zap, Bell, Layout, Users, Trophy, Target, User, Ghost, MessageSquareCode, RefreshCcw, Loader2, Book } from 'lucide-react';
+import { DEFAULT_AVATAR } from './constants';
 
 const MainApp: React.FC<{
   isLoggedIn: boolean;
@@ -23,45 +24,73 @@ const MainApp: React.FC<{
 }> = ({ isLoggedIn, onLogin, onLogout }) => {
   const [firebaseUser, setFirebaseUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
-  const [isDark, setIsDark] = useState(storageService.getTheme());
+  const [isDark, setIsDark] = useState(localStorage.getItem('skillswap_theme') === 'dark');
   const [activeSession, setActiveSession] = useState<{ partner: Student; skill: string } | null>(null);
   const [user, setUser] = useState<Student | null>(null);
   
-  // Auth & Flow State
-  const [showLanding, setShowLanding] = useState(false);
-  
+  const [showLanding, setShowLanding] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
-  const REQUESTED_AVATAR_URL = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSq4FbeFfJID8_uH9lU0Y3_i3Uf_f4vO_2rCw&s";
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setFirebaseUser(user);
+    const unsubscribe = onAuthStateChanged(auth, (authUser) => {
+      setFirebaseUser(authUser);
+      if (!authUser) {
+        setUser(null);
+        setIsInitialized(true);
+      }
     });
     return () => unsubscribe();
   }, []);  
 
+  // Listen to Firestore User Profile
   useEffect(() => {
-    storageService.init();
-    const currentUser = storageService.getCurrentUser();
-    if (currentUser) {
-      setUser(currentUser);
-      setShowLanding(false); // If they have a profile, go straight to dashboard after login logic
+    if (firebaseUser) {
+      const unsubscribe = firestoreService.subscribeToUser(firebaseUser.uid, (data) => {
+        if (data) {
+          setUser(data);
+          setShowLanding(false);
+          setIsLoginModalOpen(false);
+        } else {
+          setUser(null);
+          setShowLanding(true);
+          setIsLoginModalOpen(true);
+        }
+        setIsInitialized(true);
+      });
+      return () => unsubscribe();
     }
-    setIsInitialized(true);
-  }, []);
+  }, [firebaseUser]);
+
+  // RTDB Presence
+  useEffect(() => {
+    if (firebaseUser && user) {
+      const userStatusRef = ref(rtdb, `/status/${firebaseUser.uid}`);
+      set(userStatusRef, {
+        online: true,
+        name: user.name,
+        avatar: user.avatar || DEFAULT_AVATAR,
+        lastChanged: rtdbTimestamp()
+      });
+      
+      onDisconnect(userStatusRef).set({
+        online: false,
+        lastChanged: rtdbTimestamp()
+      });
+    }
+  }, [firebaseUser, user]);
 
   useEffect(() => {
     if (isDark) {
       document.documentElement.classList.add('dark');
+      localStorage.setItem('skillswap_theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
+      localStorage.setItem('skillswap_theme', 'light');
     }
-    storageService.setTheme(isDark);
   }, [isDark]);
 
   const triggerNotification = (msg: string) => {
@@ -69,16 +98,17 @@ const MainApp: React.FC<{
     setTimeout(() => setNotification(null), 4000);
   };
 
-
   const handleGetStarted = () => {
-    if (!isLoggedIn) {
-      onLogin();          // 🔐 Firebase Google Login
+    if (!firebaseUser) {
+      onLogin();
+      return;
+    }
+    if (!user) {
+      setIsLoginModalOpen(true);
       return;
     }
     setShowLanding(false);
   };
-  
-  
 
   const handleSync = async () => {
     if (isSyncing) return;
@@ -95,70 +125,46 @@ const MainApp: React.FC<{
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleLogout = () => {
-    onLogout();    // 🔐 Firebase logout
-  };
-  
-
   const handleStartSession = (partner: Student, skill: string) => {
     setActiveSession({ partner, skill });
     setIsSidebarOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleFinishSession = (quizScore: number) => {
-    if (!user) return;
+  const handleFinishSession = async (quizScore: number) => {
+    if (!user || !firebaseUser) return;
     const xpGained = 150 + (quizScore * 100);
-    const updatedUser = {
-      ...user,
-      points: user.points + xpGained,
-      streak: user.streak + 1,
-      skillReputation: user.skillReputation + 0.1
-    };
-    storageService.updateUser(updatedUser);
-    setUser(updatedUser);
+    
+    await firestoreService.updateUser(firebaseUser.uid, {
+      points: (user.points || 0) + xpGained,
+      streak: (user.streak || 0) + 1,
+      skillReputation: (user.skillReputation || 1) + 0.1,
+      sessionsCount: (user.sessionsCount || 0) + 1
+    });
+
     setActiveSession(null);
     setActiveTab('dashboard');
     triggerNotification(`Success! Gained ${xpGained} XP and +0.1 Rep`);
   };
 
-  const handleProfileSetup = (name: string, college: string, branch: string, strongSkills: string[], weakSkills: string[]) => {
-    let updatedUser: Student;
-    
-    if (user) {
-      updatedUser = { 
-        ...user, 
-        name, 
-        college, 
-        branch, 
-        strongSkills, 
-        weakSkills,
-        avatar: REQUESTED_AVATAR_URL 
-      };
-    } else {
-      updatedUser = {
-        id: `user-${Date.now()}`,
-        name,
-        college,
-        branch,
-        year: 1,
-        strongSkills,
-        weakSkills,
-        teachingScore: 0,
-        learningScore: 0,
-        skillReputation: 1,
-        points: 0,
-        rank: 'Novice',
-        avatar: REQUESTED_AVATAR_URL,
-        badges: [],
-        streak: 0
-      };
+  const handleProfileSetup = async (name: string, college: string, branch: string, strongSkills: string[], weakSkills: string[]) => {
+    if (!firebaseUser) return;
+
+    const updatedUser: Partial<Student> = {
+      name, college, branch, strongSkills, weakSkills
+    };
+
+    if (!user) {
+      Object.assign(updatedUser, {
+        teachingScore: 0, learningScore: 0, skillReputation: 1,
+        points: 0, rank: 'Novice', badges: [], streak: 0,
+        completedTopics: [], sessionsCount: 0, avatar: DEFAULT_AVATAR
+      });
     }
-    
-    storageService.updateUser(updatedUser);
-    setUser(updatedUser);
+
+    await firestoreService.updateUser(firebaseUser.uid, updatedUser);
     setIsLoginModalOpen(false);
-    setShowLanding(false); // Move to dashboard after profile is set up
+    setShowLanding(false);
     triggerNotification(`Hello, ${name.split(' ')[0]}! Neural Link Established.`);
   };
 
@@ -169,8 +175,6 @@ const MainApp: React.FC<{
     </div>
   );
 
-
-  // Phase 2: Landing Bridge
   if (showLanding) {
     return (
       <div className={`${isDark ? 'dark' : ''}`}>
@@ -189,17 +193,13 @@ const MainApp: React.FC<{
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-gray-900 text-white">
         <h1 className="text-3xl font-bold mb-6">SkillSwap</h1>
-        <button
-          onClick={loginWithGoogle}
-          className="px-6 py-3 bg-white text-black rounded-lg hover:opacity-90"
-        >
+        <button onClick={loginWithGoogle} className="px-6 py-3 bg-white text-black rounded-lg hover:opacity-90">
           Sign in with Google
         </button>
       </div>
     );
   }  
 
-  // Phase 3: Main App Interface
   return (
     <div className={`${isDark ? 'text-slate-100 bg-slate-950' : 'text-slate-900 bg-[#f8faff]'} min-h-screen transition-colors duration-500`}>
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={handleProfileSetup} currentUser={user} />
@@ -218,7 +218,7 @@ const MainApp: React.FC<{
           <button onClick={() => setIsSidebarOpen(true)} className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm"><Menu size={20} /></button>
           <div className="flex items-center gap-2"><Zap size={22} className="text-indigo-600 dark:text-cyan-400 fill-current" /><span className="font-black text-xl tracking-tighter">SkillSwap</span></div>
           <button onClick={() => setIsLoginModalOpen(true)} className="relative group">
-            <img src={user?.avatar || REQUESTED_AVATAR_URL} className={`w-10 h-10 rounded-2xl object-cover ring-2 ring-indigo-500 transition-transform active:scale-90 ${isSyncing ? 'animate-pulse' : ''}`} />
+            <img src={user?.avatar || DEFAULT_AVATAR} className={`w-10 h-10 rounded-2xl object-cover ring-2 ring-indigo-500 transition-transform active:scale-90 ${isSyncing ? 'animate-pulse' : ''}`} />
             <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></div>
           </button>
         </div>
@@ -226,7 +226,7 @@ const MainApp: React.FC<{
 
       <div className="flex relative">
         <aside className={`fixed md:sticky top-0 h-screen z-50 transition-transform duration-500 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-          <Sidebar activeTab={activeTab} setActiveTab={handleTabChange} isDark={isDark} toggleDark={() => setIsDark(!isDark)} onLogout={handleLogout} onClose={() => setIsSidebarOpen(false)}/>
+          <Sidebar activeTab={activeTab} setActiveTab={handleTabChange} isDark={isDark} toggleDark={() => setIsDark(!isDark)} onLogout={onLogout} onClose={() => setIsSidebarOpen(false)}/>
         </aside>
 
         <main className="flex-1 min-w-0">
@@ -235,18 +235,11 @@ const MainApp: React.FC<{
                
                {!activeSession && (
                  <div className="absolute top-8 right-8 z-30 hidden md:flex items-center gap-4">
-                    <button 
-                      onClick={handleSync}
-                      disabled={isSyncing}
-                      className="flex items-center gap-3 px-6 py-4 glass text-slate-900 dark:text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest border-indigo-100 dark:border-white/10 hover:border-indigo-600 hover:scale-105 active:scale-95 transition-all shadow-sm"
-                    >
+                    <button onClick={handleSync} disabled={isSyncing} className="flex items-center gap-3 px-6 py-4 glass text-slate-900 dark:text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest border-indigo-100 dark:border-white/10 hover:border-indigo-600 hover:scale-105 active:scale-95 transition-all shadow-sm">
                       {isSyncing ? <Loader2 size={16} className="animate-spin text-indigo-600" /> : <RefreshCcw size={16} className="text-indigo-600" />}
                       <span>{isSyncing ? 'Syncing...' : 'Neural Sync'}</span>
                     </button>
-                    <button 
-                      onClick={() => setIsLoginModalOpen(true)} 
-                      className="flex items-center gap-4 px-6 py-4 glass text-slate-900 dark:text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest border-indigo-100 dark:border-white/10 hover:border-indigo-600 hover:scale-105 active:scale-95 transition-all shadow-sm"
-                    >
+                    <button onClick={() => setIsLoginModalOpen(true)} className="flex items-center gap-4 px-6 py-4 glass text-slate-900 dark:text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest border-indigo-100 dark:border-white/10 hover:border-indigo-600 hover:scale-105 active:scale-95 transition-all shadow-sm">
                       <User size={16} className="text-indigo-600" />
                       <span>Profile</span>
                     </button>
@@ -259,6 +252,7 @@ const MainApp: React.FC<{
                  <div className="pb-24 md:pb-0">
                     {activeTab === 'dashboard' && <Dashboard onStartSession={handleStartSession} isSyncing={isSyncing} />}
                     {activeTab === 'matching' && <Matching onStartSession={handleStartSession} />}
+                    {activeTab === 'learnhub' && <LearnHub />}
                     {activeTab === 'leaderboard' && <Leaderboard />}
                     {activeTab === 'assistant' && <AIAssistant />}
                     {activeTab === 'sessions' && (
@@ -292,8 +286,8 @@ const MainApp: React.FC<{
           {[
             { id: 'dashboard', icon: Layout },
             { id: 'matching', icon: Users },
+            { id: 'learnhub', icon: Book },
             { id: 'leaderboard', icon: Trophy },
-            { id: 'marketplace', icon: Target },
             { id: 'assistant', icon: MessageSquareCode }
           ].map(item => (
             <button key={item.id} onClick={() => handleTabChange(item.id)} className={`p-3 rounded-2xl transition-all ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-xl scale-110' : 'text-slate-400'}`}><item.icon size={20} /></button>

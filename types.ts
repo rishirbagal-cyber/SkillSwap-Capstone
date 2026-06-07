@@ -17,6 +17,7 @@ export interface Badge {
 
 export interface Student {
   id: string;
+  uid?: string; // Firebase Auth UID
   name: string;
   college: string;
   branch: string;
@@ -31,6 +32,8 @@ export interface Student {
   avatar: string;
   badges: Badge[];
   streak: number;
+  completedTopics?: string[];
+  sessionsCount?: number;
 }
 
 export interface Match {
@@ -65,4 +68,12 @@ export interface Session {
   timestamp: number;
   mode: SessionMode;
   score: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  text: string;
+  senderId: string;
+  timestamp: number;
+  read: boolean;
 }

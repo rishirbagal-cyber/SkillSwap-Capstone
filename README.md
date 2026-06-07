@@ -9,12 +9,15 @@ A peer-to-peer learning platform where students exchange skills by teaching what
 - Post-session quizzes to reinforce learning and verify knowledge transfer
 - Points system to reward active participation and teaching
 - AI-powered recommendations using Google Gemini
+- Real-time chat messaging using Firebase Firestore
+- Live online presence using Firebase Realtime Database
+- Custom Learn Hub with Gemini-generated notes
 
 ## Tech Stack
 
 - React 19 with TypeScript
 - Vite for build tooling
-- Firebase for authentication and database
+- Firebase for authentication (Google Auth), database (Firestore), and presence (RTDB)
 - Google Gemini AI (@google/genai)
 - Recharts for data visualization
 - Lucide React for icons
@@ -36,28 +39,13 @@ npm install
 
 Set up environment variables:
 
-1. Create a `.env.local` file in the root directory for the frontend:
+Create a `.env.local` file in the root directory:
 ```env
-VITE_FIREBASE_API_KEY=your_key
-VITE_FIREBASE_AUTH_DOMAIN=your_domain
-VITE_FIREBASE_PROJECT_ID=your_project_id
-VITE_API_BASE=http://localhost:5000
+VITE_FIREBASE_API_KEY=your_firebase_api_key
+VITE_GEMINI_API_KEY=your_gemini_api_key
 ```
 
-2. Create a `.env` file in the `server` directory for the backend:
-```env
-GEMINI_API_KEY=your_gemini_key
-```
-
-Run the backend server:
-
-```bash
-cd server
-npm install
-npm start
-```
-
-Run the frontend development server (in a new terminal):
+Run the frontend development server:
 
 ```bash
 npm run dev
@@ -71,12 +59,10 @@ npm run build
 
 ## Project Structure
 SkillSwap-Capstone/
-├── components/        # Reusable UI components
-├── server/            # Backend logic
-├── services/          # API and Firebase service files
+├── components/        # Reusable UI components (Dashboard, ChatDrawer, LearnHub, etc.)
+├── services/          # API and Firebase service files (firestoreService, chatService, geminiService)
 ├── App.tsx            # Root component
-├── MainApp.tsx        # Main app layout and routing
-├── geminiService.ts   # Gemini AI integration
+├── MainApp.tsx        # Main app layout and routing orchestrator
 ├── types.ts           # TypeScript type definitions
 └── constants.tsx      # App-wide constants
 
