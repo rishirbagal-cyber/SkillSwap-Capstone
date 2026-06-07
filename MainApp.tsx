@@ -36,34 +36,56 @@ const MainApp: React.FC<{
   const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (authUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
       setFirebaseUser(authUser);
       if (!authUser) {
         setUser(null);
         setIsInitialized(true);
+      } else {
+        try {
+          // 1. ALWAYS check Firestore first using getDoc before showing profile setup
+          const profile = await firestoreService.getUser(authUser.uid);
+          
+          // 2. If doc exists AND profileComplete is true -> go to dashboard
+          if (profile && profile.profileComplete) {
+            setUser(profile);
+            setShowLanding(false);
+            setIsLoginModalOpen(false);
+          } else {
+            // 3. If doc does not exist OR profileComplete is false -> show profile setup
+            setUser(profile);
+            setShowLanding(true);
+            setIsLoginModalOpen(true);
+          }
+        } catch (error) {
+          console.error("Error fetching user profile during login:", error);
+          setUser(null);
+          setShowLanding(true);
+          setIsLoginModalOpen(true);
+        } finally {
+          setIsInitialized(true);
+        }
       }
     });
     return () => unsubscribe();
   }, []);  
 
-  // Listen to Firestore User Profile
+  // Listen to Firestore User Profile for real-time updates (XP, streaks, etc.)
   useEffect(() => {
-    if (firebaseUser) {
+    if (firebaseUser && isInitialized) {
       const unsubscribe = firestoreService.subscribeToUser(firebaseUser.uid, (data) => {
         if (data) {
           setUser(data);
-          setShowLanding(false);
-          setIsLoginModalOpen(false);
-        } else {
-          setUser(null);
-          setShowLanding(true);
-          setIsLoginModalOpen(true);
+          // If they complete profile on another tab/device, auto-route them
+          if (data.profileComplete && showLanding) {
+            setShowLanding(false);
+            setIsLoginModalOpen(false);
+          }
         }
-        setIsInitialized(true);
       });
       return () => unsubscribe();
     }
-  }, [firebaseUser]);
+  }, [firebaseUser, isInitialized, showLanding]);
 
   // RTDB Presence
   useEffect(() => {
