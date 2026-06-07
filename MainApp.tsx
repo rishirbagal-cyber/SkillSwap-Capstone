@@ -49,6 +49,19 @@ const MainApp: React.FC<{
   // Listen to Firestore User Profile
   useEffect(() => {
     if (firebaseUser) {
+      // Force update all users to have the professional avatar
+      import('firebase/firestore').then(({ collection, getDocs, updateDoc, doc }) => {
+        import('./services/firebase').then(({ db }) => {
+          getDocs(collection(db, 'users')).then((snap) => {
+            snap.forEach(userDoc => {
+              if (userDoc.data().avatar !== DEFAULT_AVATAR) {
+                updateDoc(doc(db, 'users', userDoc.id), { avatar: DEFAULT_AVATAR });
+              }
+            });
+          });
+        });
+      });
+
       const unsubscribe = firestoreService.subscribeToUser(firebaseUser.uid, (data) => {
         if (data) {
           setUser(data);
