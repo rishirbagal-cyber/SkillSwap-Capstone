@@ -1,58 +1,69 @@
-import { GoogleGenAI } from '@google/genai';
 import { QuizQuestion, RoadmapStep, LearningResource } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-const MODEL_NAME = 'gemini-2.5-flash';
+const GEMINI_KEYS = [
+  import.meta.env.VITE_GEMINI_KEY_1 || "",
+  import.meta.env.VITE_GEMINI_KEY_2 || "",
+  import.meta.env.VITE_GEMINI_KEY_3 || "",
+].filter(k => k.length > 0);
+
+let currentKeyIndex = 0;
+
+async function callGemini(prompt: string): Promise<string> {
+  if (GEMINI_KEYS.length === 0) throw new Error("No API keys configured.");
+  
+  for (let i = 0; i < GEMINI_KEYS.length; i++) {
+    const key = GEMINI_KEYS[currentKeyIndex];
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+    
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      });
+      
+      if (res.status === 429 || res.status === 503) {
+        currentKeyIndex = (currentKeyIndex + 1) % GEMINI_KEYS.length;
+        continue;
+      }
+      
+      if (!res.ok) throw new Error(`API error: ${res.status}`);
+      
+      const data = await res.json();
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    } catch (e: any) {
+      if (i < GEMINI_KEYS.length - 1) {
+        currentKeyIndex = (currentKeyIndex + 1) % GEMINI_KEYS.length;
+        continue;
+      }
+      throw e;
+    }
+  }
+  throw new Error("All keys exhausted.");
+}
 
 export const geminiService = {
   generateTopicNotes: async (topic: string): Promise<string> => {
     try {
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: `Create concise but comprehensive study notes for the topic: "${topic}". 
-        Include the following sections using Markdown:
-        1. **Simple Explanation** (in plain english)
-        2. **Key Concepts** (bullet points)
-        3. **Example/Code Snippet** (if applicable, else a practical real-world example)
-        4. **Practice Questions** (3-5 questions to test understanding)
-        
-        Keep it brief and easy to read. Do not output JSON, just markdown.`
-      });
-      return response.text || "No notes generated.";
+      const responseText = await callGemini(`Create concise study notes for: "${topic}". Use Markdown with sections: Simple Explanation, Key Concepts, Example, Practice Questions (3-5).`);
+      return responseText || "No notes generated.";
     } catch (e) {
-      console.error(e);
       return "Failed to generate notes. Please try again.";
     }
   },
 
   generateQuiz: async (skill: string): Promise<QuizQuestion[]> => {
-    try {
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: `Generate a 5-question multiple choice quiz for ${skill}. Return ONLY a valid JSON array of objects with keys: "question", "options" (array of 4 strings), "correctIndex" (0-3).`
-      });
-      const text = response.text || '[]';
-      const jsonStr = text.replace(/```json/g, '').replace(/```/g, '');
-      return JSON.parse(jsonStr);
-    } catch (e) {
-      console.error(e);
-      return [];
-    }
+    const responseText = await callGemini(`Generate a 10-question MCQ quiz for "${skill}". Return ONLY a valid JSON array of 10 objects with keys: "question" (string), "options" (array of 4 strings), "correctIndex" (number 0-3). No markdown, no explanation, just the JSON array.`);
+    const text = (responseText || '[]').replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(text);
   },
 
   getLearningRoadmap: async (skill: string): Promise<RoadmapStep[]> => {
-    try {
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: `Generate a 5-step learning roadmap for ${skill}. Return ONLY a valid JSON array of objects with keys: "title", "description".`
-      });
-      const text = response.text || '[]';
-      const jsonStr = text.replace(/```json/g, '').replace(/```/g, '');
-      return JSON.parse(jsonStr);
-    } catch (e) {
-      console.error(e);
-      return [{ title: 'Fundamentals', description: `Learn the basics of ${skill}` }];
-    }
+    const responseText = await callGemini(`Generate a 5-7 step learning roadmap for "${skill}". Return ONLY a valid JSON array of objects with keys: "title" (string) and "description" (string). No markdown outside JSON.`);
+    const text = (responseText || '[]').replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(text);
   },
 
   getWebResources: async (skill: string): Promise<LearningResource[]> => {
@@ -65,11 +76,8 @@ export const geminiService = {
   getGrowthInsight: async (skills: string[]): Promise<string> => {
     if (!skills.length) return "Start learning new skills to get insights!";
     try {
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: `I am learning ${skills.join(', ')}. Give me a 1 sentence motivational insight about how these combine.`
-      });
-      return response.text || "Every session brings you closer to mastery. Keep going!";
+      const responseText = await callGemini(`I am learning ${skills.join(', ')}. Give me a 1 sentence motivational insight about how these skills combine.`);
+      return responseText || "Every session brings you closer to mastery. Keep going!";
     } catch (e) {
       return "Every session brings you closer to mastery. Keep going!";
     }
@@ -77,11 +85,8 @@ export const geminiService = {
 
   askAssistant: async (query: string): Promise<string> => {
     try {
-      const response = await ai.models.generateContent({
-        model: MODEL_NAME,
-        contents: query
-      });
-      return response.text || "I'm having trouble right now.";
+      const responseText = await callGemini(`You are a helpful learning assistant. Answer this clearly and concisely: ${query}`);
+      return responseText || "I'm having trouble right now.";
     } catch (e) {
       return "I'm having trouble right now. Please try again.";
     }

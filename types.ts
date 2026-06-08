@@ -37,6 +37,13 @@ export interface Student {
   completedTopics?: string[];
   sessionsCount?: number;
   profileComplete?: boolean;
+  quizHistory?: QuizResult[];
+}
+
+export interface QuizResult {
+  date: string;
+  score: number;
+  pointsEarned: number;
 }
 
 export interface Match {

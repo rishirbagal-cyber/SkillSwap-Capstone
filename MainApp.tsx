@@ -17,6 +17,9 @@ import { Student } from './types';
 import { Menu, Zap, Bell, Layout, Users, Trophy, Target, User, Ghost, MessageSquareCode, RefreshCcw, Loader2, Book } from 'lucide-react';
 import { DEFAULT_AVATAR } from './constants';
 
+import { collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { db } from './services/firebase';
+
 const MainApp: React.FC<{
   isLoggedIn: boolean;
   onLogin: () => void;
@@ -155,18 +158,46 @@ const MainApp: React.FC<{
 
   const handleFinishSession = async (quizScore: number) => {
     if (!user || !firebaseUser) return;
-    const xpGained = 150 + (quizScore * 100);
     
+    let xpGained = 0;
+    let newStreak = user.streak || 0;
+    
+    if (quizScore >= 8) {
+      xpGained = 500;
+      newStreak += 1;
+    } else if (quizScore >= 5) {
+      xpGained = 250;
+      newStreak += 1;
+    } else {
+      xpGained = 50;
+      newStreak = 0;
+    }
+
+    const newPoints = (user.points || 0) + xpGained;
+    
+    let newRank = 'Novice';
+    if (newPoints > 5000) newRank = 'Grandmaster';
+    else if (newPoints > 2500) newRank = 'Master';
+    else if (newPoints > 1000) newRank = 'Scholar';
+
+    const newQuizHistory = [...(user.quizHistory || []), {
+      date: new Date().toLocaleDateString(),
+      score: quizScore,
+      pointsEarned: xpGained
+    }];
+
     await firestoreService.updateUser(firebaseUser.uid, {
-      points: (user.points || 0) + xpGained,
-      streak: (user.streak || 0) + 1,
+      points: newPoints,
+      streak: newStreak,
+      rank: newRank,
       skillReputation: (user.skillReputation || 1) + 0.1,
-      sessionsCount: (user.sessionsCount || 0) + 1
+      sessionsCount: (user.sessionsCount || 0) + 1,
+      quizHistory: newQuizHistory
     });
 
     setActiveSession(null);
     setActiveTab('dashboard');
-    triggerNotification(`Success! Gained ${xpGained} XP and +0.1 Rep`);
+    triggerNotification(`Quiz Score: ${quizScore}/10! Gained ${xpGained} XP.`);
   };
 
   const handleProfileSetup = async (name: string, college: string, branch: string, strongSkills: string[], weakSkills: string[], avatar: string, bio: string) => {

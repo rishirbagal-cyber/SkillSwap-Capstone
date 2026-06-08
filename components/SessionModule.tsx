@@ -15,31 +15,32 @@ interface SessionModuleProps {
 const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish, onCancel }) => {
   const [activeTab, setActiveTab] = useState<'chat' | 'roadmap' | 'resources'>('roadmap');
   const [mode, setMode] = useState<SessionMode | null>(null);
-  const [timeLeft, setTimeLeft] = useState(15 * 60); 
-  const [isActive, setIsActive] = useState(false);
   const [roadmap, setRoadmap] = useState<RoadmapStep[]>([]);
   const [resources, setResources] = useState<LearningResource[]>([]);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
+  const [apiError, setApiError] = useState<string | null>(null);
   
   const [showQuiz, setShowQuiz] = useState(false);
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [currentQuizIndex, setCurrentQuizIndex] = useState(0);
   const [quizScore, setQuizScore] = useState(0);
   const [userRating, setUserRating] = useState(0);
+  const [quizTimeLeft, setQuizTimeLeft] = useState(10 * 60);
 
   useEffect(() => {
     let timer: any;
-    if (isActive && timeLeft > 0) {
-      timer = setInterval(() => setTimeLeft(prev => prev - 1), 1000);
-    } else if (timeLeft === 0 && isActive) {
-      handleEndSession();
+    if (showQuiz && quizTimeLeft > 0) {
+      timer = setInterval(() => setQuizTimeLeft(prev => prev - 1), 1000);
+    } else if (quizTimeLeft === 0 && showQuiz) {
+      onFinish(quizScore);
     }
     return () => clearInterval(timer);
-  }, [isActive, timeLeft]);
+  }, [showQuiz, quizTimeLeft]);
 
   // Load content using skill string
   const loadAIContent = async () => {
     setIsLoadingAI(true);
+    setApiError(null);
   
     try {
       const [map, res] = await Promise.allSettled([
@@ -47,44 +48,50 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
         geminiService.getWebResources(skill)
       ]);
   
-      if (map.status === 'fulfilled') {
+      if (map.status === 'fulfilled' && map.value.length > 0 && map.value[0].title !== 'Fundamentals') {
         setRoadmap(map.value);
       } else {
-        console.error("Roadmap error:", map.reason);
-        setRoadmap([]);
+        setApiError("Gemini AI is experiencing high traffic. Rate limit exceeded.");
+        setRoadmap(map.status === 'fulfilled' ? map.value : []);
       }
   
       if (res.status === 'fulfilled') {
         setResources(res.value);
       } else {
-        console.error("Resources error:", res.reason);
         setResources([]);
       }
   
     } catch (err) {
       console.error("AI content load failed:", err);
+      setApiError("Gemini AI is experiencing high traffic. Rate limit exceeded.");
       setRoadmap([]);
       setResources([]);
     } finally {
       setIsLoadingAI(false);
     }
   };
-  
-
   const handleStart = (m: SessionMode) => {
     setMode(m);
-    setIsActive(true);
     loadAIContent();
   };
 
-  // Generate quiz using skill string
   const handleEndSession = async () => {
-    setIsActive(false);
     setIsLoadingAI(true);
-    const questions = await geminiService.generateQuiz(skill);
-    setQuizQuestions(questions);
-    setIsLoadingAI(false);
-    setShowQuiz(true);
+    setApiError(null);
+    try {
+      const questions = await geminiService.generateQuiz(skill);
+      if (!questions || questions.length === 0) {
+        setApiError("Quiz Generation Failed (429 Too Many Requests). Please try again in a few moments.");
+        setIsLoadingAI(false);
+        return;
+      }
+      setQuizQuestions(questions);
+      setShowQuiz(true);
+    } catch (e) {
+      setApiError("Quiz Generation Failed. Gemini AI is currently rate limited.");
+    } finally {
+      setIsLoadingAI(false);
+    }
   };
 
   const handleQuizAnswer = (index: number) => {
@@ -111,9 +118,14 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
             <p className="text-slate-500 font-medium">Verify knowledge retention for <span className="text-indigo-600 font-bold">{skill}</span>.</p>
           </div>
           
+          <div className="flex justify-center items-center gap-3 font-mono text-2xl font-black tracking-tighter text-red-500 animate-pulse bg-red-50 dark:bg-red-500/10 w-fit mx-auto px-6 py-2 rounded-2xl border border-red-100 dark:border-red-500/20">
+            <Clock size={20} />
+            {Math.floor(quizTimeLeft / 60)}:{String(quizTimeLeft % 60).padStart(2, '0')}
+          </div>
+          
           <div className="text-left space-y-8">
             <div className="p-8 bg-white dark:bg-white/5 rounded-[2.5rem] border border-slate-100 dark:border-white/10 relative overflow-hidden">
-              <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-500/20 px-3 py-1 rounded-full">Phase {currentQuizIndex + 1} of 3</span>
+              <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 dark:bg-indigo-500/20 px-3 py-1 rounded-full">Phase {currentQuizIndex + 1} of {quizQuestions.length}</span>
               <p className="font-bold text-xl mt-6 leading-snug dark:text-white">{quizQuestions[currentQuizIndex]?.question}</p>
             </div>
             <div className="grid gap-3">
@@ -196,15 +208,11 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
         </div>
 
         <div className="flex items-center gap-8 w-full lg:w-auto justify-between lg:justify-end">
-          <div className={`flex items-center gap-4 font-mono text-4xl font-black tracking-tighter ${timeLeft < 60 ? 'text-red-500 animate-pulse' : 'text-slate-900 dark:text-white'}`}>
-            <Clock size={28} className="text-slate-400" />
-            {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
-          </div>
           <button 
             onClick={handleEndSession}
             className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-500/20"
           >
-            End Sync
+            End Sync & Take Quiz
           </button>
         </div>
       </header>
@@ -242,6 +250,12 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
                   <Sparkles size={12} /> Sync Active
                 </div>
               </div>
+
+              {apiError && (
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 border border-red-200 dark:border-red-800 rounded-2xl text-sm font-bold text-center">
+                  {apiError}
+                </div>
+              )}
               
               {isLoadingAI ? (
                 <div className="space-y-6">
@@ -260,6 +274,15 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
                       </div>
                     </div>
                   ))}
+                  
+                  <div className="pt-8 flex justify-center border-t border-slate-100 dark:border-white/5">
+                    <button 
+                      onClick={handleEndSession}
+                      className="px-10 py-5 bg-gradient-to-r from-indigo-600 to-fuchsia-600 text-white rounded-[2rem] font-black uppercase tracking-widest text-sm hover:scale-105 active:scale-95 transition-all shadow-xl shadow-indigo-500/30 flex items-center gap-3"
+                    >
+                      <ShieldCheck size={20} /> Take Quiz
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

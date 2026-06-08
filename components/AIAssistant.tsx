@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, BrainCircuit, Bot, User, Loader2, Zap, ArrowRight } from 'lucide-react';
-
+import { geminiService } from '../services/geminiService';
 interface Message {
   role: 'user' | 'assistant';
   content: string;
@@ -30,21 +30,8 @@ const AIAssistant: React.FC = () => {
     setIsTyping(true);
   
     try {
-      const API_URL =
-        import.meta.env.MODE === "development"
-          ? "http://localhost:5000"
-          : "https://skillswap-ai-backend-szw4.onrender.com";
-
-
-      const response = await fetch(`${API_URL}/api/chat`, {
-
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: userMsg })
-      });
-  
-      const data = await response.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.message }]);
+      const responseText = await geminiService.askAssistant(userMsg);
+      setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
     } catch (error) {
       setMessages(prev => [...prev, { role: 'assistant', content: "Neural handshake failed. My circuits are currently busy." }]);
     } finally {

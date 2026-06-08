@@ -49,7 +49,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
   }, [user]);
 
   const chartData = useMemo(() => {
-    if (!user || !user.points) {
+    if (!user || !user.quizHistory || user.quizHistory.length === 0) {
       return [
         { name: 'Mon', score: 0 },
         { name: 'Tue', score: 0 },
@@ -60,17 +60,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
         { name: 'Sun', score: 0 },
       ];
     }
-    // Simplistic visual representation of points over the week
-    const base = Math.max(0, user.points - 300);
-    return [
-      { name: 'Mon', score: Math.round(base * 0.1) },
-      { name: 'Tue', score: Math.round(base * 0.25) },
-      { name: 'Wed', score: Math.round(base * 0.4) },
-      { name: 'Thu', score: Math.round(base * 0.5) },
-      { name: 'Fri', score: Math.round(base * 0.7) },
-      { name: 'Sat', score: Math.round(base * 0.85) },
-      { name: 'Sun', score: user.points },
-    ];
+    
+    let mapped = user.quizHistory.map((q, i) => ({
+      name: q.date.split('/')[0] + '/' + q.date.split('/')[1], // short date
+      score: q.score
+    }));
+
+    if (mapped.length < 7) {
+      const padding = Array(7 - mapped.length).fill(0).map((_, i) => ({ name: `-`, score: 0 }));
+      mapped = [...padding, ...mapped];
+    } else if (mapped.length > 7) {
+      mapped = mapped.slice(mapped.length - 7);
+    }
+    
+    return mapped;
   }, [user]);
 
   const recommendedMatches = useMemo(() => {
