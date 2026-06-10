@@ -2,8 +2,17 @@ import { QuizQuestion, RoadmapStep, LearningResource } from "../types";
 
 // ─── Singleton API Key Config ─────────────────────────────────────────────────
 // Keys are read once at module load time (not per-request).
+
+console.log("ENV CHECK", {
+  hasGeminiKey: !!import.meta.env.VITE_GEMINI_API_KEY,
+  hasGeminiKey1: !!import.meta.env.VITE_GEMINI_KEY_1,
+  keyPrefix:
+    import.meta.env.VITE_GEMINI_API_KEY?.slice(0, 5) ||
+    import.meta.env.VITE_GEMINI_KEY_1?.slice(0, 5)
+});
+
 const GEMINI_KEYS = [
-  import.meta.env.VITE_GEMINI_KEY_1 || "",
+  import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GEMINI_KEY_1 || "",
 ].filter((k) => k.length > 0);
 
 // ─── In-flight request deduplication map ─────────────────────────────────────
@@ -115,7 +124,7 @@ const MAX_RETRIES = 4;
 async function callGemini(prompt: string, signal?: AbortSignal): Promise<string> {
   if (GEMINI_KEYS.length === 0) {
     logDebug("Error", { message: "No API keys configured" });
-    throw new Error("No Gemini API keys configured. Set VITE_GEMINI_KEY_1 in .env.local");
+    throw new Error("No Gemini API keys configured. Set VITE_GEMINI_API_KEY in .env.local or Netlify environment variables.");
   }
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
