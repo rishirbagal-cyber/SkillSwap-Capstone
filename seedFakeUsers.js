@@ -1,8 +1,11 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, doc, setDoc } from "firebase/firestore";
 
+import * as dotenv from 'dotenv';
+dotenv.config({ path: '.env.local' });
+
 const firebaseConfig = {
-  apiKey: "REMOVED_API_KEY",
+  apiKey: process.env.VITE_FIREBASE_API_KEY,
   authDomain: "skillswap-e6d24.firebaseapp.com",
   databaseURL: "https://skillswap-e6d24-default-rtdb.firebaseio.com",
   projectId: "skillswap-e6d24",
