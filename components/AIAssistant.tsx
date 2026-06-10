@@ -1,7 +1,8 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, BrainCircuit, Bot, User, Loader2, Zap, ArrowRight } from 'lucide-react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Send, Sparkles, BrainCircuit, Bot, User, Loader2, Zap } from 'lucide-react';
 import { geminiService } from '../services/geminiService';
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
@@ -12,33 +13,76 @@ const AIAssistant: React.FC = () => {
     { role: 'assistant', content: "Hello! I am your Neural Mentor. Ask me anything about complex skills, career paths, or academic concepts. I'll explain them professionally but simply." }
   ]);
   const [input, setInput] = useState('');
+  // isTyping is our single-flight guard — prevents ANY new request while one is in progress.
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // AbortController ref lets us cancel in-flight requests on unmount (React Strict Mode safe).
+  const abortRef = useRef<AbortController | null>(null);
 
+  // Cleanup: abort any in-flight request when component unmounts.
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  // Auto-scroll to bottom when messages update.
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isTyping]);
 
-  const handleSend = async () => {
+  const handleSend = useCallback(async () => {
+    // Guard 1: No empty input.
+    // Guard 2: isTyping lock prevents concurrent requests (double-click, Enter spam).
     if (!input.trim() || isTyping) return;
-  
+
     const userMsg = input.trim();
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
     setIsTyping(true);
-  
+
+    // Create a fresh AbortController for this request.
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      const responseText = await geminiService.askAssistant(userMsg);
-      setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'assistant', content: "Neural handshake failed. My circuits are currently busy." }]);
+      const responseText = await geminiService.askAssistant(userMsg, controller.signal);
+
+      // Only update state if the request wasn't aborted (component still mounted).
+      if (!controller.signal.aborted) {
+        setMessages(prev => [...prev, { role: 'assistant', content: responseText }]);
+      }
+    } catch (error: any) {
+      if (error.name === 'AbortError') return; // Component unmounted — do nothing.
+
+      const isRateLimit =
+        error.message?.includes('429') ||
+        error.message?.includes('rate limit') ||
+        error.message?.toLowerCase().includes('too many');
+
+      const errorMsg = isRateLimit
+        ? "⚠️ Rate limit reached. Gemini's free tier allows ~15 requests/minute. Please wait a moment and try again."
+        : "Neural handshake failed. Please check your connection and try again.";
+
+      setMessages(prev => [...prev, { role: 'assistant', content: errorMsg }]);
     } finally {
-      setIsTyping(false);
+      if (!controller.signal.aborted) {
+        setIsTyping(false);
+      }
     }
-  };
-  
+  }, [input, isTyping]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    },
+    [handleSend]
+  );
 
   return (
     <div className="flex flex-col h-[75vh] animate-in fade-in duration-700">
@@ -104,9 +148,10 @@ const AIAssistant: React.FC = () => {
               type="text" 
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+              onKeyDown={handleKeyDown}
               placeholder="Query the Neural Oracle..."
-              className="w-full glass pl-14 pr-8 py-5 rounded-[2rem] border-transparent focus:border-indigo-600 outline-none transition-all font-bold text-sm dark:text-white shadow-xl"
+              disabled={isTyping}
+              className="w-full glass pl-14 pr-8 py-5 rounded-[2rem] border-transparent focus:border-indigo-600 outline-none transition-all font-bold text-sm dark:text-white shadow-xl disabled:opacity-60 disabled:cursor-not-allowed"
             />
           </div>
           <button 

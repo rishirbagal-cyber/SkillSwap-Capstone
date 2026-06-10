@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { firestoreService } from '../services/firestoreService';
 import { auth } from '../services/firebase';
-import { geminiService } from '../services/geminiService';
+
 import { 
   Award, BookOpen, Star, TrendingUp, Zap, Target, Flame, 
   Activity, Sparkles, Clock, Users, BrainCircuit, ArrowRight, Globe
@@ -18,7 +18,7 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
   const [user, setUser] = useState<Student | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
-  const [insight, setInsight] = useState<string>("Syncing neural nodes...");
+  const [insight] = useState<string>("Every skill you master today is a node in the network of your future.");
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -35,18 +35,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
     }
   }, []);
 
-  useEffect(() => {
-    const fetchInsight = async () => {
-      try {
-        if (!user) return;
-        const res = await geminiService.getGrowthInsight([...(user?.strongSkills || []), ...(user?.weakSkills || [])]);
-        setInsight(res);
-      } catch (e) {
-        setInsight("Your progress is accelerating across all mastery nodes.");
-      }
-    };
-    if (user) fetchInsight();
-  }, [user]);
+
 
   const chartData = useMemo(() => {
     if (!user || !user.quizHistory || user.quizHistory.length === 0) {

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Student, SessionMode, QuizQuestion, RoadmapStep, LearningResource } from '../types';
 import { geminiService } from '../services/geminiService';
 import { Clock, MapPin, MessageSquare, Monitor, Send, Search, Edit3, Zap, Sparkles, BookOpen, Compass, ChevronRight, Star, ShieldCheck, Video, Layout } from 'lucide-react';
@@ -17,7 +17,9 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
   const [mode, setMode] = useState<SessionMode | null>(null);
   const [roadmap, setRoadmap] = useState<RoadmapStep[]>([]);
   const [resources, setResources] = useState<LearningResource[]>([]);
-  const [isLoadingAI, setIsLoadingAI] = useState(false);
+  const [isLoadingRoadmap, setIsLoadingRoadmap] = useState(false);
+  const [isLoadingResources, setIsLoadingResources] = useState(false);
+  const [isLoadingQuiz, setIsLoadingQuiz] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   
   const [showQuiz, setShowQuiz] = useState(false);
@@ -26,6 +28,15 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
   const [quizScore, setQuizScore] = useState(0);
   const [userRating, setUserRating] = useState(0);
   const [quizTimeLeft, setQuizTimeLeft] = useState(10 * 60);
+
+  // AbortController — cancels in-flight Gemini requests when the component unmounts.
+  // This makes the component React Strict Mode safe (double-mount/unmount cycle).
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     let timer: any;
@@ -37,60 +48,85 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
     return () => clearInterval(timer);
   }, [showQuiz, quizTimeLeft]);
 
-  // Load content using skill string
-  const loadAIContent = async () => {
-    setIsLoadingAI(true);
+  // Only called when user explicitly clicks "Generate Roadmap"
+  const handleGenerateRoadmap = async () => {
+    // Guard: prevent concurrent requests (double-click protection)
+    if (isLoadingRoadmap) return;
+    setIsLoadingRoadmap(true);
     setApiError(null);
-  
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      const [map, res] = await Promise.allSettled([
-        geminiService.getLearningRoadmap(skill),
-        geminiService.getWebResources(skill)
-      ]);
-  
-      if (map.status === 'fulfilled' && map.value.length > 0 && map.value[0].title !== 'Fundamentals') {
-        setRoadmap(map.value);
+      const map = await geminiService.getLearningRoadmap(skill, controller.signal);
+      if (controller.signal.aborted) return;
+      if (map && map.length > 0) {
+        setRoadmap(map);
       } else {
-        setApiError("Gemini AI is experiencing high traffic. Rate limit exceeded.");
-        setRoadmap(map.status === 'fulfilled' ? map.value : []);
+        setApiError("Roadmap generation failed. Please try again.");
       }
-  
-      if (res.status === 'fulfilled') {
-        setResources(res.value);
-      } else {
-        setResources([]);
-      }
-  
-    } catch (err) {
-      console.error("AI content load failed:", err);
-      setApiError("Gemini AI is experiencing high traffic. Rate limit exceeded.");
-      setRoadmap([]);
-      setResources([]);
+    } catch (err: any) {
+      if (err.name === 'AbortError') return;
+      console.error("Roadmap load failed:", err);
+      const msg = err.message?.includes('rate limit')
+        ? "⚠️ Rate limit reached (429). Please wait ~60 seconds and try again."
+        : "Roadmap generation failed. Please try again.";
+      setApiError(msg);
     } finally {
-      setIsLoadingAI(false);
+      if (!controller.signal.aborted) setIsLoadingRoadmap(false);
     }
   };
+
+  // Only called when user explicitly clicks "Fetch Resources"
+  const handleFetchResources = async () => {
+    if (isLoadingResources) return; // Guard: double-click protection
+    setIsLoadingResources(true);
+    setApiError(null);
+    try {
+      const res = await geminiService.getWebResources(skill);
+      setResources(res || []);
+    } catch (err) {
+      console.error("Resources load failed:", err);
+      setApiError("Could not fetch resources. Please try again.");
+    } finally {
+      setIsLoadingResources(false);
+    }
+  };
+
   const handleStart = (m: SessionMode) => {
     setMode(m);
-    loadAIContent();
+    // No automatic API calls — user must click "Generate Roadmap" or "Fetch Resources"
   };
 
   const handleEndSession = async () => {
-    setIsLoadingAI(true);
+    // Guard: prevent double-clicks from firing two quiz generation requests
+    if (isLoadingQuiz) return;
+    setIsLoadingQuiz(true);
     setApiError(null);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
-      const questions = await geminiService.generateQuiz(skill);
+      const questions = await geminiService.generateQuiz(skill, controller.signal);
+      if (controller.signal.aborted) return;
       if (!questions || questions.length === 0) {
-        setApiError("Quiz Generation Failed (429 Too Many Requests). Please try again in a few moments.");
-        setIsLoadingAI(false);
+        setApiError("Quiz generation returned no questions. Please try again.");
         return;
       }
       setQuizQuestions(questions);
       setShowQuiz(true);
-    } catch (e) {
-      setApiError("Quiz Generation Failed. Gemini AI is currently rate limited.");
+    } catch (e: any) {
+      if (e.name === 'AbortError') return;
+      const isRateLimit = e.message?.includes('rate limit') || e.message?.includes('429');
+      setApiError(
+        isRateLimit
+          ? "⚠️ Rate limit reached (429). Please wait ~60 seconds and try again."
+          : "Quiz generation failed. Please try again."
+      );
     } finally {
-      setIsLoadingAI(false);
+      if (!controller.signal.aborted) setIsLoadingQuiz(false);
     }
   };
 
@@ -257,9 +293,25 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
                 </div>
               )}
               
-              {isLoadingAI ? (
+              {isLoadingRoadmap ? (
                 <div className="space-y-6">
                   {[1,2,3,4].map(i => <div key={i} className="h-32 w-full bg-slate-50 dark:bg-white/5 animate-pulse rounded-[2.5rem]" />)}
+                </div>
+              ) : roadmap.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-24 text-center space-y-6">
+                  <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 rounded-[2rem] flex items-center justify-center">
+                    <Compass size={36} />
+                  </div>
+                  <div>
+                    <h4 className="text-2xl font-black dark:text-white mb-2">No Roadmap Yet</h4>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm font-medium max-w-xs">Click the button below to generate an AI-curated learning path for <span className="text-indigo-600 font-bold">{skill}</span>.</p>
+                  </div>
+                  <button
+                    onClick={handleGenerateRoadmap}
+                    className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-indigo-700 active:scale-95 transition-all shadow-xl shadow-indigo-500/20 flex items-center gap-3"
+                  >
+                    <Sparkles size={16} /> Generate Roadmap
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-6">
@@ -313,13 +365,29 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
                 <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">Verified external links for deep-diving into {skill}.</p>
               </div>
               
-              {isLoadingAI ? (
+              {isLoadingResources ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {[1,2,3,4].map(i => <div key={i} className="h-48 bg-slate-50 dark:bg-white/5 animate-pulse rounded-[2.5rem]" />)}
                 </div>
+              ) : resources.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-24 text-center space-y-6">
+                  <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 rounded-[2rem] flex items-center justify-center">
+                    <Search size={36} />
+                  </div>
+                  <div>
+                    <h4 className="text-2xl font-black dark:text-white mb-2">No Resources Loaded</h4>
+                    <p className="text-slate-500 dark:text-slate-400 text-sm font-medium max-w-xs">Click below to fetch AI-curated reference links for <span className="text-indigo-600 font-bold">{skill}</span>.</p>
+                  </div>
+                  <button
+                    onClick={handleFetchResources}
+                    className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-[11px] uppercase tracking-widest hover:bg-indigo-700 active:scale-95 transition-all shadow-xl shadow-indigo-500/20 flex items-center gap-3"
+                  >
+                    <Search size={16} /> Fetch Resources
+                  </button>
+                </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {resources.length > 0 ? resources.map((res, i) => (
+                  {resources.map((res, i) => (
                     <a 
                       key={i} 
                       href={res.uri} 
@@ -336,12 +404,7 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
                         <ChevronRight size={16} className="group-hover:translate-x-1 transition-transform" />
                       </div>
                     </a>
-                  )) : (
-                    <div className="col-span-2 py-32 text-center opacity-40">
-                      <Search size={64} className="mx-auto mb-4 animate-pulse" />
-                      <p className="font-black text-xl">Calibrating knowledge nodes...</p>
-                    </div>
-                  )}
+                  ))}
                 </div>
               )}
             </div>

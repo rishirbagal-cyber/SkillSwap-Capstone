@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Book, CheckCircle, Sparkles, BrainCircuit, Loader2 } from 'lucide-react';
 import { auth } from '../services/firebase';
 import { firestoreService } from '../services/firestoreService';
@@ -17,13 +17,39 @@ const LearnHub: React.FC = () => {
     }
   }, []);
 
+  // AbortController ref — cancels in-flight Gemini request on unmount (Strict Mode safe).
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
   const generateNotes = async (topic: string) => {
+    // Guard: if already generating, ignore click (prevents concurrent requests).
+    if (isGenerating) return;
+    // Abort any previous in-flight request before starting a new one.
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     setActiveTopic(topic);
     setNotes(null);
     setIsGenerating(true);
-    const content = await geminiService.generateTopicNotes(topic);
-    setNotes(content);
-    setIsGenerating(false);
+    try {
+      const content = await geminiService.generateTopicNotes(topic, controller.signal);
+      if (controller.signal.aborted) return;
+      setNotes(content);
+    } catch (e: any) {
+      if (e.name === 'AbortError') return;
+      setNotes(
+        e.message?.includes('rate limit')
+          ? '⚠️ Rate limit reached (429). Please wait ~60 seconds and try again.'
+          : 'Failed to generate notes. Please try again.'
+      );
+    } finally {
+      if (!controller.signal.aborted) setIsGenerating(false);
+    }
   };
 
   const markAsLearned = async (topic: string) => {
