@@ -1,71 +1,137 @@
-# SkillSwap
+# 🎓 SkillSwap – Peer-to-Peer Learning Platform
 
-A peer-to-peer learning platform where students exchange skills by teaching what they know and learning what they don't. Users connect based on their strengths and weaknesses, complete quizzes after sessions, earn points, and grow together through collaborative learning.
+SkillSwap is a peer-to-peer learning platform where students exchange knowledge by teaching what they know and learning what they don't. The platform connects students based on complementary skills, encourages collaborative learning through interactive sessions, and rewards participation with a gamified points system.
 
-## What it does
+## 🌐 Live Demo
 
-- Match students based on complementary skill sets
-- Let users teach topics they are strong in and learn topics they struggle with
-- Post-session quizzes to reinforce learning and verify knowledge transfer
-- Points system to reward active participation and teaching
-- AI-powered recommendations using Google Gemini
-- Real-time chat messaging using Firebase Firestore
-- Live online presence using Firebase Realtime Database
-- Custom Learn Hub with Gemini-generated notes
+**🔗 Live Application:** https://skillswap-grow.netlify.app/
 
-## Tech Stack
+---
 
-- React 19 with TypeScript
-- Vite for build tooling
-- Firebase for authentication (Google Auth), database (Firestore), and presence (RTDB)
-- Google Gemini AI (@google/genai)
-- Recharts for data visualization
-- Lucide React for icons
+## ✨ Features
 
-## Getting Started
+* 🤝 **Smart Skill Matching** – Connects students based on complementary strengths and learning goals.
+* 👨‍🏫 **Peer Learning Sessions** – Teach topics you excel at and learn from others.
+* 📝 **Post-Session Quizzes** – Reinforce learning and validate knowledge transfer.
+* 🏆 **Gamified Points System** – Earn points by teaching, learning, and staying active.
+* 🤖 **AI-Powered Recommendations** – Personalized learning suggestions using Google Gemini AI.
+* 💬 **Real-Time Chat** – Instant messaging powered by Firebase Firestore.
+* 🟢 **Live Online Presence** – See who's online using Firebase Realtime Database.
+* 📚 **AI Learn Hub** – Generate notes and learning resources with Gemini AI.
+* 📊 **Interactive Dashboard** – Visualize learning progress through charts and analytics.
 
-Clone the repository:
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+
+* React 19
+* TypeScript
+* Vite
+
+### Backend & Database
+
+* Firebase Authentication (Google Sign-In)
+* Firebase Firestore
+* Firebase Realtime Database
+
+### AI Integration
+
+* Google Gemini AI (`@google/genai`)
+
+### Libraries
+
+* Recharts
+* Lucide React
+
+---
+
+## 🚀 Getting Started
+
+### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/Rishikesh-Bagal/SkillSwap-Capstone.git
 cd SkillSwap-Capstone
 ```
 
-Install dependencies:
+### 2. Install Dependencies
 
 ```bash
 npm install
 ```
 
-Set up environment variables:
+### 3. Configure Environment Variables
 
-Create a `.env.local` file in the root directory:
+Create a `.env.local` file in the project root.
+
 ```env
 VITE_FIREBASE_API_KEY=your_firebase_api_key
 VITE_GEMINI_API_KEY=your_gemini_api_key
 ```
 
-Run the frontend development server:
+### 4. Start the Development Server
 
 ```bash
 npm run dev
 ```
 
-Build for production:
+### 5. Build for Production
 
 ```bash
 npm run build
 ```
 
-## Project Structure
+---
+
+## 📂 Project Structure
+
+```text
 SkillSwap-Capstone/
-├── components/        # Reusable UI components (Dashboard, ChatDrawer, LearnHub, etc.)
-├── services/          # API and Firebase service files (firestoreService, chatService, geminiService)
+│
+├── components/        # Reusable UI components
+│   ├── Dashboard
+│   ├── ChatDrawer
+│   ├── LearnHub
+│   └── ...
+│
+├── services/          # Firebase & AI service files
+│   ├── firestoreService
+│   ├── chatService
+│   ├── geminiService
+│   └── ...
+│
 ├── App.tsx            # Root component
-├── MainApp.tsx        # Main app layout and routing orchestrator
-├── types.ts           # TypeScript type definitions
-└── constants.tsx      # App-wide constants
+├── MainApp.tsx        # Main application layout
+├── types.ts           # TypeScript definitions
+├── constants.tsx      # Global constants
+└── ...
+```
 
-## License
+---
 
-This project was built as a capstone project. Feel free to explore and learn from the code.
+## 💡 Core Functionality
+
+* Student-to-student skill exchange
+* AI-assisted learning recommendations
+* Real-time communication
+* Live user presence tracking
+* Knowledge assessment through quizzes
+* Progress tracking with gamification
+* AI-generated learning notes
+
+---
+
+## 📄 License
+
+This project was developed as a capstone project for educational purposes. Feel free to explore the source code, learn from it, and use it as a reference for your own projects.
+
+---
+
+## 👨‍💻 Author
+
+**Rishikesh Bagal**
+
+* GitHub: https://github.com/Rishikesh-Bagal
+* Live Demo: https://skillswap-grow.netlify.app/
