@@ -85,6 +85,6 @@ export interface ChatMessage {
   id: string;
   text: string;
   senderId: string;
-  timestamp: number;
-  read: boolean;
+  createdAt: any;
+  read?: boolean;
 }

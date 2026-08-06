@@ -1,10 +1,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Student, SessionMode, QuizQuestion, RoadmapStep, LearningResource } from '../types';
+import { Student, SessionMode, QuizQuestion, RoadmapStep, LearningResource, ChatMessage } from '../types';
 import { geminiService } from '../services/geminiService';
+import { chatService } from '../services/chatService';
 import { Clock, MapPin, MessageSquare, Monitor, Send, Search, Edit3, Zap, Sparkles, BookOpen, Compass, ChevronRight, Star, ShieldCheck, Video, Layout } from 'lucide-react';
 
 interface SessionModuleProps {
+  currentUser: Student;
   partner: Student;
   // Use string for skill name as it's the primary identifier and used by Gemini services
   skill: string;
@@ -12,7 +14,7 @@ interface SessionModuleProps {
   onCancel: () => void;
 }
 
-const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish, onCancel }) => {
+const SessionModule: React.FC<SessionModuleProps> = ({ currentUser, partner, skill, onFinish, onCancel }) => {
   const [activeTab, setActiveTab] = useState<'chat' | 'roadmap' | 'resources'>('roadmap');
   const [mode, setMode] = useState<SessionMode | null>(null);
   const [roadmap, setRoadmap] = useState<RoadmapStep[]>([]);
@@ -29,6 +31,10 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
   const [userRating, setUserRating] = useState(0);
   const [quizTimeLeft, setQuizTimeLeft] = useState(10 * 60);
 
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
   // AbortController — cancels in-flight Gemini requests when the component unmounts.
   // This makes the component React Strict Mode safe (double-mount/unmount cycle).
   const abortRef = useRef<AbortController | null>(null);
@@ -37,6 +43,22 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
       abortRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (activeTab === 'chat' && currentUser?.uid && partner?.uid) {
+      const chatId = chatService.getChatId(currentUser.uid, partner.uid);
+      const unsubscribe = chatService.subscribeToMessages(chatId, (fetchedMessages) => {
+        setMessages(fetchedMessages);
+      });
+      return () => unsubscribe();
+    }
+  }, [activeTab, currentUser?.uid, partner?.uid]);
+
+  useEffect(() => {
+    if (activeTab === 'chat') {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, activeTab]);
 
   useEffect(() => {
     let timer: any;
@@ -342,19 +364,55 @@ const SessionModule: React.FC<SessionModuleProps> = ({ partner, skill, onFinish,
 
           {activeTab === 'chat' && (
             <div className="h-[60vh] flex flex-col gap-8 animate-in slide-in-from-right-10 duration-500 max-w-4xl mx-auto">
-              <div className="flex-1 bg-slate-50/50 dark:bg-white/5 rounded-[3rem] p-10 flex flex-col items-center justify-center text-center border-2 border-dashed border-slate-200 dark:border-white/10">
-                 <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-[2rem] flex items-center justify-center mb-6 shadow-lg">
-                    <Edit3 className="text-indigo-600" size={32} />
-                 </div>
-                 <h4 className="text-2xl font-black tracking-tight mb-2 dark:text-white">Workspace Collab</h4>
-                 <p className="text-slate-500 dark:text-slate-400 text-sm font-medium max-w-sm">Share code snippets and logic diagrams with {partner.name.split(' ')[0]} here. Session history is indexed for the quiz.</p>
+              <div className="flex-1 bg-slate-50/50 dark:bg-white/5 rounded-[3rem] p-6 md:p-10 flex flex-col border-2 border-dashed border-slate-200 dark:border-white/10 overflow-hidden relative">
+                 {messages.length === 0 ? (
+                   <div className="flex-1 flex flex-col items-center justify-center text-center">
+                     <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-[2rem] flex items-center justify-center mb-6 shadow-lg">
+                        <Edit3 className="text-indigo-600" size={32} />
+                     </div>
+                     <h4 className="text-2xl font-black tracking-tight mb-2 dark:text-white">Workspace Collab</h4>
+                     <p className="text-slate-500 dark:text-slate-400 text-sm font-medium max-w-sm">Share code snippets and logic diagrams with {partner.name.split(' ')[0]} here. Session history is indexed for the quiz.</p>
+                   </div>
+                 ) : (
+                   <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar flex flex-col">
+                     {messages.map((msg) => {
+                       const isMine = msg.senderId === currentUser?.uid;
+                       return (
+                         <div key={msg.id} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
+                           <div className={`max-w-[75%] rounded-2xl px-5 py-3 ${isMine ? 'bg-indigo-600 text-white rounded-br-sm' : 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 rounded-bl-sm shadow-sm'}`}>
+                             <p className="text-sm break-words whitespace-pre-wrap">{msg.text}</p>
+                           </div>
+                         </div>
+                       );
+                     })}
+                     <div ref={messagesEndRef} />
+                   </div>
+                 )}
               </div>
-              <div className="flex gap-4">
-                <input className="flex-1 glass px-8 py-5 rounded-[2rem] outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-sm dark:text-white" placeholder="Broadcast idea..." />
-                <button className="bg-indigo-600 p-5 rounded-[2rem] text-white shadow-xl hover:scale-105 active:scale-95 transition-all">
+              <form 
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  if (!newMessage.trim() || !currentUser?.uid || !partner?.uid) return;
+                  const chatId = chatService.getChatId(currentUser.uid, partner.uid);
+                  await chatService.sendMessage(chatId, newMessage.trim(), currentUser.uid, [currentUser.uid, partner.uid]);
+                  setNewMessage('');
+                }} 
+                className="flex gap-4"
+              >
+                <input 
+                  value={newMessage}
+                  onChange={(e) => setNewMessage(e.target.value)}
+                  className="flex-1 glass px-8 py-5 rounded-[2rem] outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-sm dark:text-white" 
+                  placeholder="Broadcast idea..." 
+                />
+                <button 
+                  type="submit" 
+                  disabled={!newMessage.trim()}
+                  className="bg-indigo-600 p-5 rounded-[2rem] text-white shadow-xl hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:hover:scale-100"
+                >
                   <Send size={24} />
                 </button>
-              </div>
+              </form>
             </div>
           )}
 

@@ -47,7 +47,7 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, currentUser, p
     if (!newMessage.trim() || !currentUser?.uid || !partner?.uid) return;
     
     const chatId = chatService.getChatId(currentUser.uid, partner.uid);
-    await chatService.sendMessage(chatId, newMessage, currentUser.uid);
+    await chatService.sendMessage(chatId, newMessage, currentUser.uid, [currentUser.uid, partner.uid]);
     setNewMessage('');
   };
 
