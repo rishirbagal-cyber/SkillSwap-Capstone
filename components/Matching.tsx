@@ -10,7 +10,6 @@ import {
   User, ExternalLink, Filter, Star, GraduationCap, MapPin,
   ChevronRight, BrainCircuit, Users
 } from 'lucide-react';
-import { DEFAULT_AVATAR } from '../constants';
 
 interface MatchingProps {
   onStartSession: (partner: Student, skill: string) => void;
@@ -59,12 +58,14 @@ const Matching: React.FC<MatchingProps> = ({ onStartSession }) => {
       const teacherCanTeach = (s.strongSkills || []).find(sk => (currentUser.weakSkills || []).includes(sk));
       const learnerCanTeach = (currentUser.strongSkills || []).find(sk => (s.weakSkills || []).includes(sk));
       
-      let percentage = 25;
-      if (teacherCanTeach) percentage += 45;
-      if (learnerCanTeach) percentage += 25;
+      let percentage = 0;
+      if (teacherCanTeach && learnerCanTeach) {
+        percentage = 90;
+      } else if (teacherCanTeach || learnerCanTeach) {
+        percentage = 60;
+      }
       
-      if (s.college === currentUser.college) percentage = Math.min(100, percentage + 5);
-
+      if (percentage > 0 && s.college === currentUser.college) percentage = Math.min(100, percentage + 10);
       return {
         partner: s,
         matchPercentage: percentage,
@@ -85,10 +86,11 @@ const Matching: React.FC<MatchingProps> = ({ onStartSession }) => {
         }));
 
     return baseList.filter(item => {
+      const safeSearchTerm = (searchTerm || '').toLowerCase();
       const matchesSearch = 
-        item.partner.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (item.partner.strongSkills || []).some(s => s.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (item.partner.college || '').toLowerCase().includes(searchTerm.toLowerCase());
+        (item.partner.name || '').toLowerCase().includes(safeSearchTerm) ||
+        (item.partner.strongSkills || []).some(s => (s || '').toLowerCase().includes(safeSearchTerm)) ||
+        (item.partner.college || '').toLowerCase().includes(safeSearchTerm);
       
       const matchesCategory = selectedCategory === 'All' || true; 
 
@@ -190,10 +192,16 @@ const Matching: React.FC<MatchingProps> = ({ onStartSession }) => {
                 <div className="flex gap-4">
                   <div className="relative">
                     <div className="absolute inset-0 bg-indigo-500 rounded-2xl blur-lg opacity-0 group-hover:opacity-20 transition-opacity"></div>
-                    <img 
-                      src={item.partner.avatar || DEFAULT_AVATAR} 
-                      className="relative w-16 h-16 rounded-2xl object-cover border-2 border-white dark:border-white/10 shadow-lg" 
-                    />
+                    <div className="relative w-16 h-16 rounded-2xl overflow-hidden border-2 border-white dark:border-white/10 shadow-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                      {item.partner.avatar ? (
+                        <img 
+                          src={item.partner.avatar} 
+                          className="w-full h-full object-cover" 
+                        />
+                      ) : (
+                        <User size={32} className="text-slate-400" />
+                      )}
+                    </div>
                     {isOnline && (
                       <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full shadow-lg z-10"></div>
                     )}

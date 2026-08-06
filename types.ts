@@ -19,6 +19,7 @@ export interface Student {
   id: string;
   uid?: string; // Firebase Auth UID
   name: string;
+  displayName?: string;
   email?: string;
   college: string;
   branch: string;

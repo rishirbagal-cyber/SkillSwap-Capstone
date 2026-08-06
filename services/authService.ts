@@ -1,29 +1,80 @@
-import { signInWithPopup, signOut } from "firebase/auth";
+import { signInWithPopup, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
 import { auth, googleProvider, db } from "./firebase";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 
 export async function loginWithGoogle() {
   const result = await signInWithPopup(auth, googleProvider);
   const user = result.user;
 
-  console.log("Firebase user:", user);
-
   const userRef = doc(db, "users", user.uid);
+  const userSnap = await getDoc(userRef);
 
-  await setDoc(userRef, {
-    uid: user.uid,
-    name: user.displayName,
-    email: user.email,
-    photo: user.photoURL,
-    createdAt: serverTimestamp(),
-    lastLogin: serverTimestamp()
-  }, { merge: true });
-
-  console.log("User written to Firestore");
+  if (!userSnap.exists()) {
+    await setDoc(userRef, {
+      uid: user.uid,
+      email: user.email || "",
+      username: user.displayName || "",
+      displayName: user.displayName || "",
+      photoURL: user.photoURL || null,
+      bio: "",
+      college: "",
+      branch: "",
+      skillsOffered: [],
+      skillsWanted: [],
+      points: 0,
+      streak: 0,
+      completedSessions: 0,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    });
+    console.log("New Google User written to Firestore");
+  } else {
+    await updateDoc(userRef, {
+      updatedAt: serverTimestamp()
+    });
+    console.log("Existing Google User logged in");
+  }
 
   return user;
 }
 
 export async function logout() {
   await signOut(auth);
+}
+
+export async function loginWithEmail(email: string, password: string) {
+  const normalizedEmail = email.trim();
+  const result = await signInWithEmailAndPassword(auth, normalizedEmail, password);
+  return result.user;
+}
+
+export async function signUpWithEmail(email: string, password: string, name: string) {
+  const normalizedEmail = email.trim();
+  const result = await createUserWithEmailAndPassword(auth, normalizedEmail, password);
+  const user = result.user;
+
+  await sendEmailVerification(user);
+
+  const userRef = doc(db, "users", user.uid);
+
+  await setDoc(userRef, {
+    uid: user.uid,
+    email: user.email || normalizedEmail,
+    username: name,
+    displayName: name,
+    photoURL: null,
+    bio: "",
+    college: "",
+    branch: "",
+    skillsOffered: [],
+    skillsWanted: [],
+    points: 0,
+    streak: 0,
+    completedSessions: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+
+  console.log("User written to Firestore via Email Signup");
+  return user;
 }

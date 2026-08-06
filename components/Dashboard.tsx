@@ -5,10 +5,9 @@ import { auth } from '../services/firebase';
 
 import { 
   Award, BookOpen, Star, TrendingUp, Zap, Target, Flame, 
-  Activity, Sparkles, Clock, Users, BrainCircuit, ArrowRight, Globe
+  Activity, Sparkles, Clock, Users, BrainCircuit, ArrowRight, Globe, User
 } from 'lucide-react';
 import { Student } from '../types';
-import { DEFAULT_AVATAR } from '../constants';
 
 interface DashboardProps {
   onStartSession?: (partner: Student, skill: string) => void;
@@ -66,17 +65,33 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
   }, [user]);
 
   const recommendedMatches = useMemo(() => {
-    if (!user) return [];
-    return students.map(s => {
-      const matchSkill = (s.strongSkills || []).find(sk => (user.weakSkills || []).includes(sk));
-      let score = matchSkill ? 70 : 10;
-      if (s.college === user.college) score += 20;
-      return { 
-        partner: s, 
-        matchScore: Math.min(100, score),
-        suggestedSkill: matchSkill || (s.strongSkills || [])[0] || ''
-      };
-    }).sort((a, b) => b.matchScore - a.matchScore).slice(0, 4);
+    if (!user || (!user.strongSkills?.length && !user.weakSkills?.length)) return [];
+    
+    const matches = students
+      .filter(s => s.uid !== user.uid)
+      .map(s => {
+        const matchSkill = (s.strongSkills || []).find(sk => (user.weakSkills || []).includes(sk));
+        if (!matchSkill) return null; // Real matches only
+        
+        const learnerCanTeach = (user.strongSkills || []).find(sk => (s.weakSkills || []).includes(sk));
+        
+        let score = 0;
+        if (matchSkill && learnerCanTeach) {
+          score = 90;
+        } else if (matchSkill) {
+          score = 60;
+        }
+        
+        if (score > 0 && s.college === user.college) score += 10;        
+        return { 
+          partner: s, 
+          matchScore: Math.min(100, score),
+          suggestedSkill: matchSkill
+        };
+      })
+      .filter(Boolean) as any[];
+      
+    return matches.sort((a, b) => b.matchScore - a.matchScore).slice(0, 4);
   }, [user, students]);
 
   if (!isMounted || !user) return null;
@@ -97,12 +112,16 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
           
           <div className="space-y-3">
             <div className="flex items-center gap-4 text-indigo-600 dark:text-cyan-400">
-               <div className="w-16 h-16 glass rounded-3xl flex items-center justify-center shadow-xl border-white/50 relative overflow-hidden">
-                  <img src={user.avatar || DEFAULT_AVATAR} className={`w-16 h-16 object-cover ${isSyncing ? 'opacity-50' : ''}`} />
+               <div className="w-16 h-16 glass rounded-3xl flex items-center justify-center shadow-xl border-white/50 relative overflow-hidden bg-slate-800">
+                  {user.avatar || user.photoURL ? (
+                    <img src={user.avatar || user.photoURL || undefined} className={`w-16 h-16 object-cover ${isSyncing ? 'opacity-50' : ''}`} />
+                  ) : (
+                    <User size={32} className="text-slate-400" />
+                  )}
                </div>
                <div className="space-y-1">
-                  <span className="text-sm font-black uppercase tracking-widest text-slate-400">Status: {user.rank}</span>
-                  <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white uppercase">Welcome back, {user.name.split(' ')[0]}</h2>
+                  <span className="text-sm font-black uppercase tracking-widest text-slate-400">Status: {user.rank || 'Unranked'}</span>
+                  <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white uppercase">Welcome back, {(user.name || user.displayName || 'User').split(' ')[0]}</h2>
                </div>
             </div>
             <h1 className="text-6xl md:text-8xl font-black font-heading tracking-tighter text-slate-900 dark:text-white leading-[0.85]">
@@ -131,7 +150,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
           </div>
           <div className="hidden md:flex glass p-6 rounded-[2.5rem] border-indigo-100 dark:border-indigo-500/20 text-center flex flex-col items-center group hover:scale-105 transition-all">
             <Globe className="text-indigo-600 mb-2 group-hover:scale-110 transition-transform" size={32} />
-            <div className="text-3xl font-black dark:text-white">#1</div>
+            <div className="text-3xl font-black dark:text-white">{(user.points || 0) > 0 ? (user.rank || 'Novice') : '--'}</div>
             <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Global Rank</div>
           </div>
         </div>
@@ -151,16 +170,20 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
           {recommendedMatches.length > 0 ? recommendedMatches.map((m, i) => (
             <div key={i} className="neo-card min-w-[300px] p-6 rounded-[2.5rem] flex flex-col gap-6 group hover:border-indigo-600/50 transition-all border-transparent">
               <div className="flex justify-between items-start">
-                <div className="relative">
-                  <img src={m.partner.avatar || DEFAULT_AVATAR} className="w-14 h-14 rounded-2xl shadow-lg border-2 border-white dark:border-white/10" />
+                <div className="relative w-14 h-14 bg-slate-800 rounded-2xl shadow-lg border-2 border-white dark:border-white/10 flex items-center justify-center overflow-hidden">
+                  {m.partner.avatar || m.partner.photoURL ? (
+                    <img src={m.partner.avatar || m.partner.photoURL || undefined} className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={24} className="text-slate-400" />
+                  )}
                 </div>
                 <div className="px-3 py-1 bg-indigo-50 dark:bg-indigo-500/10 rounded-full text-[9px] font-black text-indigo-600 border border-indigo-100 dark:border-indigo-500/20">
                   {m.matchScore}% Neural Match
                 </div>
               </div>
               <div className="space-y-1">
-                <h4 className="font-black text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors">{m.partner.name}</h4>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{m.partner.college}</p>
+                <h4 className="font-black text-slate-900 dark:text-white group-hover:text-indigo-600 transition-colors">{m.partner.name || m.partner.displayName || 'Anonymous'}</h4>
+                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest truncate">{m.partner.college || 'Unknown College'}</p>
               </div>
               <div className="p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
                  <p className="text-[8px] font-black uppercase text-slate-400 mb-1">Expert in</p>
@@ -175,7 +198,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
             </div>
           )) : (
             <div className="w-full p-12 glass rounded-3xl text-center text-slate-500 font-bold">
-              The neural network is currently empty. More peers will appear as they join.
+              No matches yet. Add skills you can teach and skills you want to learn to discover compatible peers.
             </div>
           )}
         </div>
