@@ -4,7 +4,6 @@ import { Student, ChatMessage } from '../types';
 import { chatService } from '../services/chatService';
 import { rtdb } from '../services/firebase';
 import { ref, onValue } from 'firebase/database';
-import { DEFAULT_AVATAR } from '../constants';
 
 interface ChatDrawerProps {
   isOpen: boolean;
@@ -74,7 +73,13 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, currentUser, p
                 <X size={20} className="text-slate-500" />
               </button>
               <div className="relative">
-                <img src={partner.avatar || DEFAULT_AVATAR} alt={partner.name} className="w-10 h-10 rounded-full object-cover" />
+              <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+                {partner.avatar || partner.photoURL ? (
+                  <img src={partner.avatar || partner.photoURL} alt={partner.name} className="w-full h-full object-cover" />
+                ) : (
+                  <User size={20} className="text-slate-400" />
+                )}
+              </div>
                 {isPartnerOnline && (
                   <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></div>
                 )}
