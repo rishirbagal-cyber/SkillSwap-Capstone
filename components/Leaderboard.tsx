@@ -1,18 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { firestoreService } from '../services/firestoreService';
 import { auth } from '../services/firebase';
+import { apiService } from '../services/apiService';
 import { Student } from '../types';
 import { Award, Crown, User } from 'lucide-react';
 
 const Leaderboard: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [currentUser, setCurrentUser] = useState<Student | null>(null);
+  const [pgLeaderboard, setPgLeaderboard] = useState<{firebaseUid: string, totalXp: number}[]>([]);
 
   useEffect(() => {
+    // Fetch true XP from PostgreSQL backend
+    apiService.getLeaderboard().then(setPgLeaderboard).catch(console.error);
+
     if (auth.currentUser) {
       const unsubUser = firestoreService.subscribeToUser(auth.currentUser.uid, setCurrentUser);
       const unsubUsers = firestoreService.subscribeToUsers((allUsers) => {
-        setStudents(allUsers.sort((a, b) => (b.points || 0) - (a.points || 0)));
+        setStudents(allUsers);
       });
       return () => {
         unsubUser();
@@ -20,6 +25,19 @@ const Leaderboard: React.FC = () => {
       };
     }
   }, []);
+
+  // Merge Postgres XP with Firestore profiles
+  const rankedStudents = pgLeaderboard.length > 0 
+    ? pgLeaderboard.map(pg => {
+        const profile = students.find(s => s.uid === pg.firebaseUid);
+        return {
+          ...(profile || {} as Student),
+          id: pg.firebaseUid,
+          uid: pg.firebaseUid,
+          points: pg.totalXp
+        };
+      }).filter(s => s.name) // Ensure profile exists
+    : students.sort((a, b) => (b.points || 0) - (a.points || 0)); // Fallback if pg fails
 
   return (
     <div className="p-5 md:p-10 max-w-5xl mx-auto space-y-8 animate-in fade-in duration-700">
@@ -30,7 +48,7 @@ const Leaderboard: React.FC = () => {
 
       {/* Podium - Responsive Stack */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8 md:mb-12 pt-4">
-        {students.slice(0, 3).map((student, i) => (
+        {rankedStudents.slice(0, 3).map((student, i) => (
           <div key={student.id} className={`glass p-6 md:p-8 rounded-[2rem] md:rounded-[2.5rem] relative overflow-hidden transition-transform hover:scale-105 ${i === 0 ? 'ring-4 ring-yellow-400 ring-offset-4 md:ring-offset-8 md:-translate-y-4' : 'order-last md:order-none'}`}>
             {i === 0 && <Crown className="absolute top-4 right-4 text-yellow-400" size={28} />}
             <div className="flex flex-col items-center">
@@ -69,7 +87,7 @@ const Leaderboard: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-white/5">
-              {students.map((student, i) => (
+              {rankedStudents.map((student, i) => (
                 <tr key={student.id} className={`hover:bg-indigo-50/30 dark:hover:bg-white/5 transition-colors ${currentUser && student.id === currentUser.id ? 'bg-indigo-50/50 dark:bg-indigo-500/10' : ''}`}>
                   <td className="px-6 py-4 font-bold text-slate-500 dark:text-slate-400">#{i + 1}</td>
                   <td className="px-6 py-4">
