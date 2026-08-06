@@ -1,6 +1,8 @@
 import express from "express";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
+import prisma from "./prismaClient.js";
+import { requireAuth } from "./middleware/auth.js";
 
 dotenv.config();
 
@@ -137,6 +139,218 @@ app.post("/api/resources", (req, res) => {
 app.post("/api/insight", (req, res) => {
   const { skills } = req.body;
   res.json({ message: `You're progressing well in ${skills ? skills.join(", ") : "your skills"}. Keep building and practicing daily.` });
+});
+
+/* =======================================================
+   POSTGRESQL + PRISMA ROUTES (PROTECTED BY FIREBASE AUTH)
+   ======================================================= */
+
+// Ensure a UserReference exists in Postgres (Helper function, called on protected routes if needed)
+async function ensureUser(uid) {
+  let userRef = await prisma.userReference.findUnique({ where: { firebaseUid: uid } });
+  if (!userRef) {
+    userRef = await prisma.userReference.create({ data: { firebaseUid: uid } });
+  }
+  return userRef;
+}
+
+// 1. Skill Swap Requests
+app.post("/api/swap-requests", requireAuth, async (req, res) => {
+  try {
+    const { receiverUid, skillOffered, skillWanted } = req.body;
+    const senderUid = req.user.uid;
+
+    if (senderUid === receiverUid) {
+      return res.status(400).json({ error: "Cannot request a swap with yourself." });
+    }
+
+    await ensureUser(senderUid);
+    await ensureUser(receiverUid);
+
+    const newRequest = await prisma.skillSwapRequest.create({
+      data: {
+        senderUid,
+        receiverUid,
+        skillOffered,
+        skillWanted
+      }
+    });
+
+    res.json(newRequest);
+  } catch (error) {
+    console.error("CREATE REQUEST ERROR:", error);
+    res.status(500).json({ error: "Failed to create request." });
+  }
+});
+
+app.get("/api/swap-requests", requireAuth, async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const requests = await prisma.skillSwapRequest.findMany({
+      where: {
+        OR: [ { senderUid: uid }, { receiverUid: uid } ]
+      },
+      include: {
+        session: true
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(requests);
+  } catch (error) {
+    console.error("GET REQUESTS ERROR:", error);
+    res.status(500).json({ error: "Failed to fetch requests." });
+  }
+});
+
+app.patch("/api/swap-requests/:id", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action } = req.body; // 'accept' or 'reject'
+    const uid = req.user.uid;
+
+    const request = await prisma.skillSwapRequest.findUnique({ where: { id } });
+    
+    if (!request) return res.status(404).json({ error: "Request not found." });
+    if (request.receiverUid !== uid) {
+      return res.status(403).json({ error: "You are not authorized to respond to this request." });
+    }
+    if (request.status !== "PENDING") {
+      return res.status(400).json({ error: "Request already processed." });
+    }
+
+    const newStatus = action === 'accept' ? 'ACCEPTED' : 'REJECTED';
+    
+    const updatedRequest = await prisma.skillSwapRequest.update({
+      where: { id },
+      data: { status: newStatus }
+    });
+
+    // If accepted, auto-create a session
+    if (newStatus === 'ACCEPTED') {
+      await prisma.session.create({
+        data: {
+          requestId: id,
+          tutorUid: request.receiverUid, // Simplification: Receiver is tutor initially
+          learnerUid: request.senderUid
+        }
+      });
+    }
+
+    res.json(updatedRequest);
+  } catch (error) {
+    console.error("PATCH REQUEST ERROR:", error);
+    res.status(500).json({ error: "Failed to update request." });
+  }
+});
+
+// 2. Sessions
+app.get("/api/sessions", requireAuth, async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    const sessions = await prisma.session.findMany({
+      where: {
+        OR: [ { tutorUid: uid }, { learnerUid: uid } ]
+      },
+      include: { request: true },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(sessions);
+  } catch (error) {
+    console.error("GET SESSIONS ERROR:", error);
+    res.status(500).json({ error: "Failed to fetch sessions." });
+  }
+});
+
+app.patch("/api/sessions/:id", requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const uid = req.user.uid;
+    const { status } = req.body; // 'COMPLETED' or 'CANCELLED'
+
+    const session = await prisma.session.findUnique({ where: { id } });
+    if (!session) return res.status(404).json({ error: "Session not found." });
+    if (session.tutorUid !== uid && session.learnerUid !== uid) {
+      return res.status(403).json({ error: "Unauthorized access to session." });
+    }
+
+    const updatedSession = await prisma.session.update({
+      where: { id },
+      data: { status }
+    });
+
+    res.json(updatedSession);
+  } catch (error) {
+    console.error("PATCH SESSION ERROR:", error);
+    res.status(500).json({ error: "Failed to update session." });
+  }
+});
+
+// 3. Reviews & XP
+app.post("/api/reviews", requireAuth, async (req, res) => {
+  try {
+    const { sessionId, rating, comment } = req.body;
+    const reviewerUid = req.user.uid;
+
+    const session = await prisma.session.findUnique({ where: { id: sessionId } });
+    if (!session || session.status !== "COMPLETED") {
+      return res.status(400).json({ error: "Can only review completed sessions." });
+    }
+    if (session.tutorUid !== reviewerUid && session.learnerUid !== reviewerUid) {
+      return res.status(403).json({ error: "You were not part of this session." });
+    }
+
+    const revieweeUid = session.tutorUid === reviewerUid ? session.learnerUid : session.tutorUid;
+
+    const review = await prisma.review.create({
+      data: {
+        sessionId,
+        reviewerUid,
+        revieweeUid,
+        rating,
+        comment
+      }
+    });
+
+    // Award XP
+    const xpAmount = rating * 10; // Simple XP logic
+    await prisma.xpTransaction.create({
+      data: {
+        userUid: revieweeUid,
+        amount: xpAmount,
+        reason: `Received a ${rating}-star review for session ${sessionId}`
+      }
+    });
+
+    await prisma.userReference.update({
+      where: { firebaseUid: revieweeUid },
+      data: { totalXp: { increment: xpAmount } }
+    });
+
+    res.json(review);
+  } catch (error) {
+    console.error("CREATE REVIEW ERROR:", error);
+    res.status(500).json({ error: "Failed to create review or you already reviewed this session." });
+  }
+});
+
+// 4. Leaderboard
+app.get("/api/leaderboard", async (req, res) => {
+  // Can optionally be protected or public. We'll make it public for now, 
+  // but it queries Postgres for the rankings.
+  try {
+    const leaderboard = await prisma.userReference.findMany({
+      orderBy: { totalXp: 'desc' },
+      take: 10,
+      select: {
+        firebaseUid: true,
+        totalXp: true
+      }
+    });
+    res.json(leaderboard);
+  } catch (error) {
+    console.error("GET LEADERBOARD ERROR:", error);
+    res.status(500).json({ error: "Failed to fetch leaderboard." });
+  }
 });
 
 const PORT = process.env.PORT || 5000;

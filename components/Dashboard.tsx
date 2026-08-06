@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { firestoreService } from '../services/firestoreService';
+import { apiService } from '../services/apiService';
 import { auth } from '../services/firebase';
 
 import { 
@@ -10,7 +11,7 @@ import {
 import { Student } from '../types';
 
 interface DashboardProps {
-  onStartSession?: (partner: Student, skill: string) => void;
+  onStartSession?: (partner: Student, skill: string, sessionId?: string) => void;
   isSyncing?: boolean;
 }
 
@@ -19,10 +20,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [insight] = useState<string>("Every skill you master today is a node in the network of your future.");
   const [isMounted, setIsMounted] = useState(false);
+  const [incomingRequests, setIncomingRequests] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
 
   useEffect(() => {
     setIsMounted(true);
+    
+    // Fetch requests & sessions from Postgres
+    const fetchRealData = async () => {
+      try {
+        const reqs = await apiService.getSwapRequests();
+        const sess = await apiService.getSessions();
+        setIncomingRequests(reqs.filter((r: any) => r.status === 'PENDING' && r.receiverUid === auth.currentUser?.uid));
+        setSessions(sess);
+      } catch (e) {
+        console.error("Failed to load postgres data:", e);
+      }
+    };
+
     if (auth.currentUser) {
+      fetchRealData();
       const unsubUser = firestoreService.subscribeToUser(auth.currentUser.uid, setUser);
       const unsubUsers = firestoreService.subscribeToUsers((allUsers) => {
         setStudents(allUsers.filter(s => s.uid !== auth.currentUser?.uid));
@@ -97,7 +114,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
   if (!isMounted || !user) return null;
 
   const completedTopicsCount = (user.completedTopics || []).length;
-  const sessionsCount = user.sessionsCount || 0;
+  const sessionsCount = sessions.length; // Use real sessions count
 
   return (
     <div className="p-6 md:p-10 lg:p-16 space-y-12 animate-in fade-in duration-1000">
@@ -281,6 +298,66 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Dynamic Data from PostgreSQL */}
+        <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
+           <div className="neo-card p-8 rounded-[3rem]">
+             <h3 className="text-xl font-black mb-6 dark:text-white">Incoming Requests</h3>
+             {incomingRequests.length === 0 ? (
+               <p className="text-slate-500 font-medium">No pending requests.</p>
+             ) : (
+               <div className="space-y-4">
+                 {incomingRequests.map(req => {
+                   const sender = students.find(s => s.uid === req.senderUid);
+                   return (
+                     <div key={req.id} className="p-4 glass border-indigo-100 rounded-2xl flex justify-between items-center">
+                       <div>
+                         <p className="font-bold dark:text-white">{sender?.name || req.senderUid} wants to learn <span className="text-indigo-600">{req.skillWanted}</span></p>
+                       </div>
+                       <div className="flex gap-2">
+                         <button onClick={async () => {
+                           await apiService.respondToSwapRequest(req.id, 'accept');
+                           setIncomingRequests(prev => prev.filter(r => r.id !== req.id));
+                           alert('Request accepted! Session created.');
+                         }} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Accept</button>
+                         <button onClick={async () => {
+                           await apiService.respondToSwapRequest(req.id, 'reject');
+                           setIncomingRequests(prev => prev.filter(r => r.id !== req.id));
+                         }} className="px-4 py-2 bg-red-100 text-red-600 rounded-xl text-xs font-bold">Reject</button>
+                       </div>
+                     </div>
+                   );
+                 })}
+               </div>
+             )}
+           </div>
+
+           <div className="neo-card p-8 rounded-[3rem]">
+             <h3 className="text-xl font-black mb-6 dark:text-white">Active Sessions</h3>
+             {sessions.filter(s => s.status === 'SCHEDULED').length === 0 ? (
+               <p className="text-slate-500 font-medium">No active sessions.</p>
+             ) : (
+               <div className="space-y-4">
+                 {sessions.filter(s => s.status === 'SCHEDULED').map(sess => {
+                   const partnerUid = sess.tutorUid === auth.currentUser?.uid ? sess.learnerUid : sess.tutorUid;
+                   const partner = students.find(s => s.uid === partnerUid);
+                   return (
+                     <div key={sess.id} className="p-4 glass border-indigo-100 rounded-2xl flex justify-between items-center">
+                       <div>
+                         <p className="font-bold dark:text-white">Session with {partner?.name || partnerUid}</p>
+                       </div>
+                       <button onClick={() => {
+                         if (partner) {
+                           onStartSession?.(partner, sess.request?.skillOffered || 'Skill', sess.id);
+                         }
+                       }} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Start</button>
+                     </div>
+                   );
+                 })}
+               </div>
+             )}
+           </div>
         </div>
       </div>
     </div>
