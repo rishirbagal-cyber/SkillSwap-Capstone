@@ -326,8 +326,8 @@ const MainApp: React.FC<{
                  </div>
                )}
 
-               {activeSession ? (
-                 <SessionModule partner={activeSession.partner} skill={activeSession.skill} onFinish={handleFinishSession} onCancel={() => setActiveSession(null)} />
+                {activeSession ? (
+                 <SessionModule currentUser={user!} partner={activeSession.partner} skill={activeSession.skill} onFinish={handleFinishSession} onCancel={() => setActiveSession(null)} />
                ) : (
                  <div className="pb-24 md:pb-0">
                     {activeTab === 'dashboard' && <Dashboard onStartSession={handleStartSession} isSyncing={isSyncing} />}
