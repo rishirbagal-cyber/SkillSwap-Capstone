@@ -10,9 +10,16 @@ const app = express();
 
 /* ================= CORS HARD FIX ================= */
 app.use((req, res, next) => {
-  const origin = req.headers.origin || "*";
-  res.setHeader("Access-Control-Allow-Origin", origin);
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  const allowedOrigins = ['https://skillswap-grow.netlify.app', 'http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000'];
+  const origin = req.headers.origin;
+  
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  } else if (!origin) {
+    res.setHeader("Access-Control-Allow-Origin", "https://skillswap-grow.netlify.app");
+  }
+
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
