@@ -3,6 +3,7 @@ import { auth, rtdb } from "./services/firebase";
 import { ref, onDisconnect, set, serverTimestamp as rtdbTimestamp } from "firebase/database";
 import { logout } from "./services/authService";
 import { firestoreService } from "./services/firestoreService";
+import { apiService } from "./services/apiService";
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
@@ -39,7 +40,7 @@ const MainApp: React.FC<{
 
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isDark, setIsDark] = useState(localStorage.getItem('skillswap_theme') === 'dark');
-  const [activeSession, setActiveSession] = useState<{ partner: Student; skill: string } | null>(null);
+  const [activeSession, setActiveSession] = useState<{ partner: Student; skill: string; sessionId?: string } | null>(null);
   
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
@@ -129,8 +130,8 @@ const MainApp: React.FC<{
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleStartSession = (partner: Student, skill: string) => {
-    setActiveSession({ partner, skill });
+  const handleStartSession = (partner: Student, skill: string, sessionId?: string) => {
+    setActiveSession({ partner, skill, sessionId });
     setIsSidebarOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -173,6 +174,17 @@ const MainApp: React.FC<{
       sessionsCount: (user.sessionsCount || 0) + 1,
       quizHistory: newQuizHistory
     });
+
+    if (activeSession?.sessionId) {
+      try {
+        await apiService.completeSession(activeSession.sessionId);
+        // We use quizScore (0 to 10) to map to a 1 to 5 star rating
+        const rating = Math.max(1, Math.min(5, Math.ceil(quizScore / 2)));
+        await apiService.createReview(activeSession.sessionId, rating, `Automated review for scoring ${quizScore}/10 on quiz`);
+      } catch (err) {
+        console.error("Failed to sync session to Postgres:", err);
+      }
+    }
 
     setActiveSession(null);
     setActiveTab('dashboard');
@@ -314,8 +326,8 @@ const MainApp: React.FC<{
                  </div>
                )}
 
-               {activeSession ? (
-                 <SessionModule partner={activeSession.partner} skill={activeSession.skill} onFinish={handleFinishSession} onCancel={() => setActiveSession(null)} />
+                {activeSession ? (
+                 <SessionModule currentUser={user!} partner={activeSession.partner} skill={activeSession.skill} onFinish={handleFinishSession} onCancel={() => setActiveSession(null)} />
                ) : (
                  <div className="pb-24 md:pb-0">
                     {activeTab === 'dashboard' && <Dashboard onStartSession={handleStartSession} isSyncing={isSyncing} />}

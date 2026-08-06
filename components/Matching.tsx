@@ -3,6 +3,7 @@ import { Student, Match, SkillCategory } from '../types';
 import { SKILL_CATEGORIES } from '../constants';
 import { auth, rtdb } from '../services/firebase';
 import { firestoreService } from '../services/firestoreService';
+import { apiService } from '../services/apiService';
 import { onValue, ref } from 'firebase/database';
 import ChatDrawer from './ChatDrawer';
 import { 
@@ -12,7 +13,7 @@ import {
 } from 'lucide-react';
 
 interface MatchingProps {
-  onStartSession: (partner: Student, skill: string) => void;
+  onStartSession: (partner: Student, skill: string, sessionId?: string) => void;
 }
 
 const Matching: React.FC<MatchingProps> = ({ onStartSession }) => {
@@ -25,6 +26,20 @@ const Matching: React.FC<MatchingProps> = ({ onStartSession }) => {
   const [selectedCategory, setSelectedCategory] = useState<SkillCategory | 'All'>('All');
   
   const [chatPartner, setChatPartner] = useState<Student | null>(null);
+  const [requestingUid, setRequestingUid] = useState<string | null>(null);
+
+  const handleRequestSwap = async (partnerUid: string, skillOffered: string, skillWanted: string) => {
+    try {
+      setRequestingUid(partnerUid);
+      await apiService.createSwapRequest(partnerUid, skillOffered, skillWanted);
+      alert('Skill Swap Request Sent successfully!');
+    } catch (error) {
+      console.error(error);
+      alert('Failed to send request. You might have already sent one.');
+    } finally {
+      setRequestingUid(null);
+    }
+  };
 
   useEffect(() => {
     if (auth.currentUser) {
@@ -279,10 +294,11 @@ const Matching: React.FC<MatchingProps> = ({ onStartSession }) => {
 
               <div className="pt-6 mt-auto">
                  <button 
-                    onClick={() => onStartSession(item.partner, item.mutualStrongSkill)}
-                    className="w-full bg-slate-900 dark:bg-indigo-600 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 group/btn"
+                    onClick={() => handleRequestSwap(item.partner.uid, item.mutualWeakSkill || 'Any', item.mutualStrongSkill || 'Any')}
+                    disabled={requestingUid === item.partner.uid}
+                    className="w-full bg-slate-900 dark:bg-indigo-600 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl transition-all hover:bg-indigo-700 hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 group/btn disabled:opacity-50"
                   >
-                    Request Skill Swap <ArrowUpRight size={14} className="group-hover/btn:translate-x-1 group-hover/btn:-translate-y-1 transition-transform" />
+                    {requestingUid === item.partner.uid ? 'Sending...' : 'Request Skill Swap'} <ArrowUpRight size={14} className="group-hover/btn:translate-x-1 group-hover/btn:-translate-y-1 transition-transform" />
                   </button>
                   <div className="grid grid-cols-2 gap-3 mt-4">
                     <button className="flex items-center justify-center gap-2 py-3 glass rounded-xl text-[9px] font-black uppercase text-slate-500 hover:text-indigo-600 transition-colors">
