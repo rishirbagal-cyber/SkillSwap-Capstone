@@ -2,8 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { firestoreService } from '../services/firestoreService';
 import { auth } from '../services/firebase';
 import { Student } from '../types';
-import { Award, Crown } from 'lucide-react';
-import { DEFAULT_AVATAR } from '../constants';
+import { Award, Crown, User } from 'lucide-react';
 
 const Leaderboard: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
@@ -36,7 +35,13 @@ const Leaderboard: React.FC = () => {
             {i === 0 && <Crown className="absolute top-4 right-4 text-yellow-400" size={28} />}
             <div className="flex flex-col items-center">
               <div className="relative mb-4">
-                <img src={student.avatar || DEFAULT_AVATAR} className="w-20 h-20 md:w-24 md:h-24 rounded-2xl md:rounded-3xl object-cover ring-4 ring-white dark:ring-slate-700 shadow-lg" />
+                <div className="relative z-10 w-20 h-20 md:w-24 md:h-24 rounded-2xl md:rounded-3xl shadow-lg ring-4 ring-white dark:ring-slate-700 bg-slate-800 flex items-center justify-center overflow-hidden">
+                  {student.avatar || student.photoURL ? (
+                    <img src={student.avatar || student.photoURL} className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={32} className="text-slate-400" />
+                  )}
+                </div>
                 <div className={`absolute -bottom-2 -right-2 w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center font-bold text-white shadow-lg text-sm ${i === 0 ? 'bg-yellow-400' : i === 1 ? 'bg-slate-300' : 'bg-amber-600'}`}>
                   {i + 1}
                 </div>
@@ -69,7 +74,13 @@ const Leaderboard: React.FC = () => {
                   <td className="px-6 py-4 font-bold text-slate-500 dark:text-slate-400">#{i + 1}</td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <img src={student.avatar || DEFAULT_AVATAR} className="w-9 h-9 rounded-xl object-cover" />
+                      <div className="w-9 h-9 rounded-xl overflow-hidden bg-slate-800 flex items-center justify-center">
+                        {student.avatar || student.photoURL ? (
+                          <img src={student.avatar || student.photoURL} className="w-full h-full object-cover" />
+                        ) : (
+                          <User size={16} className="text-slate-400" />
+                        )}
+                      </div>
                       <div>
                         <p className="font-bold text-slate-900 dark:text-white text-sm">{student.name}</p>
                         <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[150px]">{student.college}</p>

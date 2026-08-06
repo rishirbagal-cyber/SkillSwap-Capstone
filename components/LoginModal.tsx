@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, GraduationCap, BookOpen, Zap, Sparkles, Plus, Trash2, Link as LinkIcon, FileText, Loader2, AlertCircle } from 'lucide-react';
+import { X, User, GraduationCap, BookOpen, UserCircle2, Plus, Trash2, FileText, Loader2, AlertCircle } from 'lucide-react';
 import { Student } from '../types';
-import { DEFAULT_AVATAR } from '../constants';
 
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin: (name: string, college: string, branch: string, strongSkills: string[], weakSkills: string[], avatar: string, bio: string) => Promise<void>;
+  onLogin: (name: string, college: string, branch: string, strongSkills: string[], weakSkills: string[], avatar: string | null, bio: string) => Promise<void>;
   currentUser: Student | null;
 }
 
@@ -14,7 +13,6 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
   const [name, setName] = useState('');
   const [college, setCollege] = useState('');
   const [branch, setBranch] = useState('');
-  const [avatar, setAvatar] = useState('');
   const [bio, setBio] = useState('');
   const [strongSkills, setStrongSkills] = useState<string[]>([]);
   const [weakSkills, setWeakSkills] = useState<string[]>([]);
@@ -26,21 +24,19 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
 
   useEffect(() => {
     if (currentUser) {
-      setName(currentUser.name || '');
+      setName(currentUser.name || currentUser.displayName || '');
       setCollege(currentUser.college || '');
       setBranch(currentUser.branch || '');
-      setAvatar(currentUser.avatar || DEFAULT_AVATAR);
       setBio(currentUser.bio || '');
-      setStrongSkills(currentUser.strongSkills || []);
-      setWeakSkills(currentUser.weakSkills || []);
+      setStrongSkills(currentUser.strongSkills || currentUser.skillsOffered || []);
+      setWeakSkills(currentUser.weakSkills || currentUser.skillsWanted || []);
     } else {
       setName('');
       setCollege('');
       setBranch('');
-      setAvatar(DEFAULT_AVATAR);
       setBio('');
-      setStrongSkills(['Communication']);
-      setWeakSkills(['Programming']);
+      setStrongSkills([]);
+      setWeakSkills([]);
     }
     setError(null);
     setIsSaving(false);
@@ -66,7 +62,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError("Full Name is required to establish your identity.");
+      setError("Full Name is required.");
       return;
     }
     
@@ -74,6 +70,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
     setIsSaving(true);
     
     try {
+      const avatar = currentUser?.photoURL || currentUser?.avatar || null;
       await onLogin(name, college, branch, strongSkills, weakSkills, avatar, bio);
     } catch (err: any) {
       setError(err.message || "An error occurred while saving your profile.");
@@ -81,29 +78,37 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
     }
   };
 
+  const currentAvatar = currentUser?.photoURL || currentUser?.avatar || null;
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300" onClick={onClose} />
       
-      <div className="relative w-full max-w-2xl glass p-8 md:p-10 rounded-[3rem] border-white/20 dark:border-white/5 shadow-2xl animate-in zoom-in duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
-        {currentUser && (
-          <button onClick={onClose} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-indigo-600 transition-colors">
+      <div className="relative w-full max-w-2xl glass p-8 md:p-10 rounded-[3rem] border-white/20 dark:border-white/5 shadow-2xl animate-in zoom-in duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar bg-slate-900/90 text-white">
+        {currentUser?.profileComplete && (
+          <button onClick={onClose} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-indigo-400 transition-colors">
             <X size={20} />
           </button>
         )}
 
         <div className="mb-8 text-center space-y-3">
-          <div className="w-16 h-16 bg-indigo-600 rounded-2xl mx-auto flex items-center justify-center text-white shadow-xl shadow-indigo-500/30">
-            {currentUser ? <img src={avatar || DEFAULT_AVATAR} className="w-full h-full rounded-2xl object-cover" /> : <Zap size={32} fill="white" />}
+          <div className="w-20 h-20 bg-slate-800 rounded-full mx-auto flex items-center justify-center text-slate-300 shadow-xl overflow-hidden border-2 border-indigo-500/30">
+            {currentAvatar ? (
+              <img src={currentAvatar} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              <UserCircle2 size={40} />
+            )}
           </div>
-          <h2 className="text-3xl font-black tracking-tight dark:text-white">
-            {currentUser ? 'Neural Identity' : 'Establish Identity'}
+          <h2 className="text-3xl font-black tracking-tight text-white">
+            Complete Your Profile
           </h2>
-          <p className="text-slate-500 text-sm font-medium italic">Configure your peer-exchange parameters</p>
+          <p className="text-slate-400 text-sm font-medium">
+            Tell us a little about yourself to get better skill matches.
+          </p>
         </div>
 
         {error && (
-          <div className="mb-6 p-4 glass bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400 rounded-2xl flex items-center gap-3 text-sm font-bold animate-in fade-in slide-in-from-top-2">
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/20 text-red-400 rounded-2xl flex items-center gap-3 text-sm font-bold animate-in fade-in slide-in-from-top-2">
             <AlertCircle size={18} />
             {error}
           </div>
@@ -115,32 +120,24 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Full Name *</label>
               <div className="relative group">
-                <User className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className="w-full glass pl-14 pr-6 py-4 rounded-2xl outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-slate-900 dark:text-white" />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Avatar URL</label>
-              <div className="relative group">
-                <LinkIcon className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                <input type="url" value={avatar} onChange={(e) => setAvatar(e.target.value)} placeholder="https://..." className="w-full glass pl-14 pr-6 py-4 rounded-2xl outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-slate-900 dark:text-white" />
+                <User className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-400 transition-colors" size={18} />
+                <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Full Name" className="w-full bg-white/5 pl-14 pr-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-white placeholder:text-slate-600" />
               </div>
             </div>
 
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">College</label>
               <div className="relative group">
-                <GraduationCap className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                <input type="text" value={college} onChange={(e) => setCollege(e.target.value)} placeholder="College" className="w-full glass pl-14 pr-6 py-4 rounded-2xl outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-slate-900 dark:text-white" />
+                <GraduationCap className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-400 transition-colors" size={18} />
+                <input type="text" value={college} onChange={(e) => setCollege(e.target.value)} placeholder="e.g. Stanford University" className="w-full bg-white/5 pl-14 pr-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-white placeholder:text-slate-600" />
               </div>
             </div>
 
             <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Branch</label>
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Branch / Major</label>
               <div className="relative group">
-                <BookOpen className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                <input type="text" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="Branch" className="w-full glass pl-14 pr-6 py-4 rounded-2xl outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-slate-900 dark:text-white" />
+                <BookOpen className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-400 transition-colors" size={18} />
+                <input type="text" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="e.g. Computer Science" className="w-full bg-white/5 pl-14 pr-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-white placeholder:text-slate-600" />
               </div>
             </div>
           </div>
@@ -150,33 +147,33 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Bio</label>
               <div className="relative group">
-                <FileText className="absolute left-6 top-6 text-slate-400 group-focus-within:text-indigo-600 transition-colors" size={18} />
-                <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell us about yourself..." className="w-full glass pl-14 pr-6 py-4 rounded-2xl outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-slate-900 dark:text-white min-h-[100px] resize-none"></textarea>
+                <FileText className="absolute left-6 top-6 text-slate-400 group-focus-within:text-indigo-400 transition-colors" size={18} />
+                <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell us about yourself..." className="w-full bg-white/5 pl-14 pr-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-white placeholder:text-slate-600 min-h-[100px] resize-none"></textarea>
               </div>
             </div>
 
             <div className="space-y-4">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Skills Network</label>
-              <div className="flex gap-2 p-1 bg-slate-100 dark:bg-white/5 rounded-xl">
-                <button type="button" onClick={() => setSkillType('strong')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${skillType === 'strong' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400'}`}>Mastery</button>
-                <button type="button" onClick={() => setSkillType('weak')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${skillType === 'weak' ? 'bg-fuchsia-600 text-white shadow-lg' : 'text-slate-400'}`}>Target</button>
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Skills</label>
+              <div className="flex gap-2 p-1 bg-white/5 rounded-xl">
+                <button type="button" onClick={() => setSkillType('strong')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${skillType === 'strong' ? 'bg-indigo-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>I Can Teach</button>
+                <button type="button" onClick={() => setSkillType('weak')} className={`flex-1 py-2 text-[10px] font-black uppercase rounded-lg transition-all ${skillType === 'weak' ? 'bg-fuchsia-600 text-white shadow-lg' : 'text-slate-400 hover:text-white'}`}>I Want to Learn</button>
               </div>
               
               <div className="relative">
-                <input type="text" value={newSkill} onChange={(e) => setNewSkill(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSkill())} placeholder={`Add ${skillType} skill...`} className="w-full glass px-6 py-4 rounded-2xl outline-none border-transparent focus:border-indigo-600 transition-all font-bold text-sm text-slate-900 dark:text-white" />
-                <button type="button" onClick={handleAddSkill} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-slate-200 dark:bg-white/10 rounded-xl hover:bg-indigo-600 hover:text-white transition-all"><Plus size={16} /></button>
+                <input type="text" value={newSkill} onChange={(e) => setNewSkill(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSkill())} placeholder={`Add skill to ${skillType === 'strong' ? 'teach' : 'learn'}...`} className="w-full bg-white/5 px-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-sm text-white placeholder:text-slate-600" />
+                <button type="button" onClick={handleAddSkill} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-white/10 rounded-xl hover:bg-indigo-600 hover:text-white transition-all"><Plus size={16} /></button>
               </div>
 
               <div className="space-y-4 max-h-[150px] overflow-y-auto pr-2 custom-scrollbar">
                 <div className="flex flex-wrap gap-2">
                   {strongSkills.map(s => (
-                    <span key={s} className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 rounded-lg text-[10px] font-black border border-indigo-100">
-                      {s} <button type="button" onClick={() => removeSkill(s, 'strong')}><Trash2 size={10} /></button>
+                    <span key={s} className="flex items-center gap-2 px-3 py-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg text-[10px] font-black border border-indigo-500/20">
+                      {s} <button type="button" onClick={() => removeSkill(s, 'strong')} className="hover:text-red-400"><Trash2 size={10} /></button>
                     </span>
                   ))}
                   {weakSkills.map(s => (
-                    <span key={s} className="flex items-center gap-2 px-3 py-1.5 bg-fuchsia-50 dark:bg-fuchsia-500/10 text-fuchsia-600 rounded-lg text-[10px] font-black border border-fuchsia-100">
-                      {s} <button type="button" onClick={() => removeSkill(s, 'weak')}><Trash2 size={10} /></button>
+                    <span key={s} className="flex items-center gap-2 px-3 py-1.5 bg-fuchsia-500/10 text-fuchsia-400 rounded-lg text-[10px] font-black border border-fuchsia-500/20">
+                      {s} <button type="button" onClick={() => removeSkill(s, 'weak')} className="hover:text-red-400"><Trash2 size={10} /></button>
                     </span>
                   ))}
                 </div>
@@ -184,11 +181,11 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
             </div>
           </div>
 
-          <button type="submit" disabled={isSaving} className="md:col-span-2 w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-500/20 hover:bg-indigo-700 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:hover:scale-100">
+          <button type="submit" disabled={isSaving} className="md:col-span-2 w-full bg-indigo-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 hover:bg-indigo-500 active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-70 disabled:hover:scale-100 mt-4">
             {isSaving ? (
-              <><Loader2 size={16} className="animate-spin" /> ESTABLISHING LINK...</>
+              <><Loader2 size={16} className="animate-spin" /> Saving...</>
             ) : (
-              <>{currentUser ? 'Update Profile' : 'Launch Link'} <Sparkles size={16} /></>
+              <>Save Profile</>
             )}
           </button>
         </form>

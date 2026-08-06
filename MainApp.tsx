@@ -1,7 +1,7 @@
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, rtdb } from "./services/firebase";
 import { ref, onDisconnect, set, serverTimestamp as rtdbTimestamp } from "firebase/database";
-import { loginWithGoogle, logout } from "./services/authService";
+import { logout } from "./services/authService";
 import { firestoreService } from "./services/firestoreService";
 import React, { useState, useEffect } from 'react';
 import Sidebar from './components/Sidebar';
@@ -11,14 +11,21 @@ import SessionModule from './components/SessionModule';
 import Leaderboard from './components/Leaderboard';
 import LearnHub from './components/LearnHub';
 import LoginModal from './components/LoginModal';
-import LandingPage from './components/LandingPage';
+import AuthPage from './components/AuthPage';
+import VerifyEmailPage from './components/VerifyEmailPage';
 import AIAssistant from './components/AIAssistant';
 import { Student } from './types';
 import { Menu, Zap, Bell, Layout, Users, Trophy, Target, User, Ghost, MessageSquareCode, RefreshCcw, Loader2, Book } from 'lucide-react';
-import { DEFAULT_AVATAR } from './constants';
 
-import { collection, query, where, getDocs, deleteDoc } from 'firebase/firestore';
-import { db } from './services/firebase';
+const isProfileComplete = (profile: Student | null): boolean => {
+  if (!profile) return false;
+  const hasName = Boolean(profile.name || profile.displayName);
+  const hasCollege = Boolean(profile.college?.trim());
+  const hasBranch = Boolean(profile.branch?.trim());
+  const hasStrongSkills = Array.isArray(profile.strongSkills) && profile.strongSkills.length > 0;
+  const hasWeakSkills = Array.isArray(profile.weakSkills) && profile.weakSkills.length > 0;
+  return hasName && hasCollege && hasBranch && hasStrongSkills && hasWeakSkills;
+};
 
 const MainApp: React.FC<{
   isLoggedIn: boolean;
@@ -26,16 +33,17 @@ const MainApp: React.FC<{
   onLogout: () => void;
 }> = ({ isLoggedIn, onLogin, onLogout }) => {
   const [firebaseUser, setFirebaseUser] = useState<any>(null);
+  const [user, setUser] = useState<Student | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(true);
+
   const [activeTab, setActiveTab] = useState('dashboard');
   const [isDark, setIsDark] = useState(localStorage.getItem('skillswap_theme') === 'dark');
   const [activeSession, setActiveSession] = useState<{ partner: Student; skill: string } | null>(null);
-  const [user, setUser] = useState<Student | null>(null);
   
-  const [showLanding, setShowLanding] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
 
   useEffect(() => {
@@ -44,51 +52,34 @@ const MainApp: React.FC<{
       if (!authUser) {
         setUser(null);
         setIsInitialized(true);
+        setProfileLoading(false);
       } else {
         try {
-          // 1. ALWAYS check Firestore first using getDoc before showing profile setup
           const profile = await firestoreService.getUser(authUser.uid);
-          
-          // 2. If doc exists AND profileComplete is true -> go to dashboard
-          if (profile && profile.profileComplete) {
-            setUser(profile);
-            setShowLanding(false);
-            setIsLoginModalOpen(false);
-          } else {
-            // 3. If doc does not exist OR profileComplete is false -> show profile setup
-            setUser(profile);
-            setShowLanding(true);
-            setIsLoginModalOpen(true);
-          }
+          setUser(profile);
         } catch (error) {
           console.error("Error fetching user profile during login:", error);
           setUser(null);
-          setShowLanding(true);
-          setIsLoginModalOpen(true);
         } finally {
           setIsInitialized(true);
+          setProfileLoading(false);
         }
       }
     });
     return () => unsubscribe();
-  }, []);  
+  }, []);
 
-  // Listen to Firestore User Profile for real-time updates (XP, streaks, etc.)
+  // Listen to Firestore User Profile for real-time updates
   useEffect(() => {
     if (firebaseUser && isInitialized) {
       const unsubscribe = firestoreService.subscribeToUser(firebaseUser.uid, (data) => {
         if (data) {
           setUser(data);
-          // If they complete profile on another tab/device, auto-route them
-          if (data.profileComplete && showLanding) {
-            setShowLanding(false);
-            setIsLoginModalOpen(false);
-          }
         }
       });
       return () => unsubscribe();
     }
-  }, [firebaseUser, isInitialized, showLanding]);
+  }, [firebaseUser, isInitialized]);
 
   // RTDB Presence
   useEffect(() => {
@@ -96,8 +87,8 @@ const MainApp: React.FC<{
       const userStatusRef = ref(rtdb, `/status/${firebaseUser.uid}`);
       set(userStatusRef, {
         online: true,
-        name: user.name,
-        avatar: user.avatar || DEFAULT_AVATAR,
+        name: user.name || user.displayName || 'Anonymous',
+        avatar: user.avatar || user.photoURL || null,
         lastChanged: rtdbTimestamp()
       });
       
@@ -121,18 +112,6 @@ const MainApp: React.FC<{
   const triggerNotification = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 4000);
-  };
-
-  const handleGetStarted = () => {
-    if (!firebaseUser) {
-      onLogin();
-      return;
-    }
-    if (!user) {
-      setIsLoginModalOpen(true);
-      return;
-    }
-    setShowLanding(false);
   };
 
   const handleSync = async () => {
@@ -200,16 +179,20 @@ const MainApp: React.FC<{
     triggerNotification(`Quiz Score: ${quizScore}/10! Gained ${xpGained} XP.`);
   };
 
-  const handleProfileSetup = async (name: string, college: string, branch: string, strongSkills: string[], weakSkills: string[], avatar: string, bio: string) => {
+  const handleProfileSetup = async (name: string, college: string, branch: string, strongSkills: string[], weakSkills: string[], avatar: string | null, bio: string) => {
     if (!firebaseUser) throw new Error("No authenticated user found.");
 
     const updatedUser: Partial<Student> = {
       id: firebaseUser.uid,
       uid: firebaseUser.uid,
-      name, college, branch, strongSkills, weakSkills, avatar, bio,
+      name, college, branch, strongSkills, weakSkills, bio,
       profileComplete: true
     };
     
+    if (avatar) {
+      updatedUser.avatar = avatar;
+    }
+
     if (firebaseUser.email) {
       updatedUser.email = firebaseUser.email;
     }
@@ -225,7 +208,6 @@ const MainApp: React.FC<{
     try {
       await firestoreService.updateUser(firebaseUser.uid, updatedUser);
       setIsLoginModalOpen(false);
-      setShowLanding(false);
       triggerNotification(`Hello, ${name.split(' ')[0]}! Neural Link Established.`);
     } catch (err) {
       console.error("Profile Setup Error:", err);
@@ -233,40 +215,55 @@ const MainApp: React.FC<{
     }
   };
 
-  if (!isInitialized) return (
-    <div className="h-screen w-full flex flex-col items-center justify-center bg-slate-950 p-6 text-center">
-      <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-      <p className="text-indigo-400 font-black tracking-widest text-xs uppercase animate-pulse">Initializing Neural Handshake...</p>
-    </div>
-  );
+  // ROUTING LOGIC
 
-  if (showLanding) {
+  // 1. App Loading Screen
+  if (!isInitialized || (firebaseUser && profileLoading)) {
     return (
-      <div className={`${isDark ? 'dark' : ''}`}>
-        <LoginModal 
-          isOpen={isLoginModalOpen} 
-          onClose={() => setIsLoginModalOpen(false)} 
-          onLogin={handleProfileSetup} 
-          currentUser={user} 
-        />
-        <LandingPage onGetStarted={handleGetStarted} />
+      <div className={`h-screen w-full flex flex-col items-center justify-center p-6 text-center ${isDark ? 'bg-slate-950' : 'bg-slate-50'}`}>
+        <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-indigo-500 font-black tracking-widest text-xs uppercase animate-pulse">Establishing Connection...</p>
       </div>
     );
   }
 
+  // 2. Not Authenticated -> AuthPage
   if (!firebaseUser) {
+    return <AuthPage />;
+  }
+
+  // 3. Check Email Verification (only for password auth)
+  const isPasswordAuth = firebaseUser.providerData?.some((p: any) => p.providerId === 'password');
+  if (isPasswordAuth && !firebaseUser.emailVerified) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-gray-900 text-white">
-        <h1 className="text-3xl font-bold mb-6">SkillSwap</h1>
-        <button onClick={loginWithGoogle} className="px-6 py-3 bg-white text-black rounded-lg hover:opacity-90">
-          Sign in with Google
-        </button>
+      <VerifyEmailPage 
+        user={firebaseUser} 
+        onVerified={() => setFirebaseUser({ ...firebaseUser, emailVerified: true })} 
+        onLogout={onLogout} 
+      />
+    );
+  }
+
+  // 4. Profile Incomplete -> Force Profile Setup
+  const complete = isProfileComplete(user);
+  if (!complete) {
+    return (
+      <div className={`${isDark ? 'dark bg-slate-950' : 'bg-slate-50'} min-h-screen`}>
+        {/* Render a dark background so it's not totally empty behind the modal */}
+        <LoginModal 
+          isOpen={true} 
+          onClose={() => {}} // Cannot close until complete
+          onLogin={handleProfileSetup} 
+          currentUser={user} 
+        />
       </div>
     );
-  }  
+  }
 
+  // 4. Fully Authenticated and Complete -> Dashboard / Main App
   return (
     <div className={`${isDark ? 'text-slate-100 bg-slate-950' : 'text-slate-900 bg-[#f8faff]'} min-h-screen transition-colors duration-500`}>
+      {/* Manual profile edit modal (when triggered from nav) */}
       <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={handleProfileSetup} currentUser={user} />
       
       {notification && (
@@ -283,7 +280,13 @@ const MainApp: React.FC<{
           <button onClick={() => setIsSidebarOpen(true)} className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm"><Menu size={20} /></button>
           <div className="flex items-center gap-2"><Zap size={22} className="text-indigo-600 dark:text-cyan-400 fill-current" /><span className="font-black text-xl tracking-tighter">SkillSwap</span></div>
           <button onClick={() => setIsLoginModalOpen(true)} className="relative group">
-            <img src={user?.avatar || DEFAULT_AVATAR} className={`w-10 h-10 rounded-2xl object-cover ring-2 ring-indigo-500 transition-transform active:scale-90 ${isSyncing ? 'animate-pulse' : ''}`} />
+            <div className={`w-10 h-10 rounded-2xl object-cover ring-2 ring-indigo-500 transition-transform active:scale-90 flex items-center justify-center bg-slate-800 ${isSyncing ? 'animate-pulse' : ''}`}>
+               {user?.avatar || user?.photoURL ? (
+                 <img src={user.avatar || user.photoURL} className="w-full h-full rounded-2xl object-cover" />
+               ) : (
+                 <User size={20} className="text-slate-400" />
+               )}
+            </div>
             <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white dark:border-slate-900 rounded-full"></div>
           </button>
         </div>
@@ -363,4 +366,4 @@ const MainApp: React.FC<{
   );
 };
 
-export default MainApp; 
+export default MainApp;

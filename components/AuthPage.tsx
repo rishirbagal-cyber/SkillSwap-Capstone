@@ -1,102 +1,238 @@
+"use client";
 
-import React, { useState } from 'react';
-import { Mail, Lock, Zap, ArrowRight, Github, Chrome } from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import { Mail, Lock, User, Chrome, Loader2 } from "lucide-react";
+import { loginWithEmail, signUpWithEmail, loginWithGoogle } from "../services/authService";
+import "./AuthPage.css";
 
-interface AuthPageProps {
-  onLogin: () => void;
-}
+export default function AuthPage() {
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-const AuthPage: React.FC<AuthPageProps> = ({ onLogin }) => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  // Form states
+  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+
+  useEffect(() => {
+    const container = document.querySelector(".auth-container");
+    if (!container) return;
+
+    if (isSignUp) {
+      container.classList.add("sign-up-mode");
+    } else {
+      container.classList.remove("sign-up-mode");
+    }
+    setErrorMsg(null); // Clear errors on switch
+  }, [isSignUp]);
+
+  const mapFirebaseError = (error: any) => {
+    const code = error?.code || "";
+    if (code === "auth/invalid-credential" || code === "auth/user-not-found" || code === "auth/wrong-password") return "Incorrect email or password.";
+    if (code === "auth/email-already-in-use") return "An account with this email already exists.";
+    if (code === "auth/weak-password") return "Password must be at least 6 characters.";
+    if (code === "auth/invalid-email") return "Please enter a valid email address.";
+    if (code === "auth/popup-closed-by-user") return null; // do not show
+    return "Something went wrong. Please try again.";
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin();
+    if (isLoading) return;
+    setErrorMsg(null);
+    setIsLoading(true);
+
+    try {
+      if (!username.trim()) throw new Error("Please provide a username.");
+      
+      if (password.length < 8) {
+        throw new Error("Password must be at least 8 characters long.");
+      }
+      
+      const hasUppercase = /[A-Z]/.test(password);
+      const hasLowercase = /[a-z]/.test(password);
+      const hasNumber = /[0-9]/.test(password);
+      
+      if (!hasUppercase || !hasLowercase || !hasNumber) {
+        throw new Error("Password must contain at least one uppercase letter, one lowercase letter, and one number.");
+      }
+
+      await signUpWithEmail(email, password, username);
+    } catch (err: any) {
+      if (err.message === "Please provide a username." || err.message.startsWith("Password must")) {
+        setErrorMsg(err.message);
+      } else {
+        const msg = mapFirebaseError(err);
+        if (msg) setErrorMsg(msg);
+      }
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (isLoading) return;
+    setErrorMsg(null);
+    setIsLoading(true);
+
+    try {
+      await loginWithEmail(loginEmail, loginPassword);
+    } catch (err: any) {
+      const msg = mapFirebaseError(err);
+      if (msg) setErrorMsg(msg);
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleAuth = async () => {
+    if (isLoading) return;
+    setErrorMsg(null);
+    setIsLoading(true);
+    try {
+      await loginWithGoogle();
+    } catch (err: any) {
+      const msg = mapFirebaseError(err);
+      if (msg) setErrorMsg(msg);
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden bg-slate-950">
-      {/* Background Decorative Elements */}
-      <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-indigo-600/20 blur-[120px] rounded-full animate-pulse"></div>
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-fuchsia-600/20 blur-[120px] rounded-full animate-pulse [animation-delay:2s]"></div>
-      </div>
+    <div className={`auth-container ${isSignUp ? "sign-up-mode" : ""}`}>
+      <div className="forms-container">
+        <div className="signin-signup">
+          
+          {/* SIGN IN */}
+          <form className="sign-in-form" onSubmit={handleSignIn}>
+            <h2 className="title">Sign in</h2>
 
-      <div className="w-full max-w-md relative z-10 animate-in fade-in zoom-in duration-700">
-        <div className="text-center mb-10 space-y-4">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-tr from-indigo-500 to-fuchsia-500 rounded-[2rem] shadow-2xl shadow-indigo-500/20 mb-4 animate-float">
-            <Zap size={40} className="text-white fill-current" />
-          </div>
-          <h1 className="text-4xl font-black tracking-tighter text-white uppercase italic">
-            Neural <span className="text-indigo-400">Gateway</span>
-          </h1>
-          <p className="text-slate-400 font-bold text-sm tracking-widest uppercase">Establish your peer link</p>
-        </div>
-
-        <div className="glass p-10 rounded-[3rem] border-white/10 shadow-2xl space-y-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 ml-4">Neural ID (Email)</label>
-              <div className="relative group">
-                <Mail className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors" size={18} />
-                <input 
-                  type="email" 
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@university.edu" 
-                  className="w-full bg-white/5 border border-white/10 pl-14 pr-6 py-5 rounded-2xl outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold text-white placeholder:text-slate-600"
-                />
-              </div>
+            <div className="input-field">
+              <i><Mail size={18} /></i>
+              <input
+                type="email"
+                placeholder="Email"
+                required
+                value={loginEmail}
+                onChange={(e) => setLoginEmail(e.target.value)}
+              />
             </div>
 
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500 ml-4">Access Key</label>
-              <div className="relative group">
-                <Lock className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-indigo-400 transition-colors" size={18} />
-                <input 
-                  type="password" 
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••" 
-                  className="w-full bg-white/5 border border-white/10 pl-14 pr-6 py-5 rounded-2xl outline-none focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold text-white placeholder:text-slate-600"
-                />
-              </div>
+            <div className="input-field">
+              <i><Lock size={18} /></i>
+              <input
+                type="password"
+                placeholder="Password"
+                required
+                value={loginPassword}
+                onChange={(e) => setLoginPassword(e.target.value)}
+              />
             </div>
 
-            <button 
-              type="submit"
-              className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-indigo-600/20 transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-3 group"
-            >
-              Enter System <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+            {errorMsg && !isSignUp && <p className="error-msg">{errorMsg}</p>}
+
+            <button type="submit" className="btn solid flex items-center justify-center gap-2" disabled={isLoading}>
+              {isLoading && !isSignUp ? <Loader2 size={16} className="animate-spin" /> : null}
+              Login
             </button>
+
+            <p className="social-text">Or sign in with Google</p>
+
+            <div className="social-media">
+              <button type="button" onClick={handleGoogleAuth} className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10 transition-colors" disabled={isLoading}>
+                <Chrome size={20} className="text-white" />
+              </button>
+            </div>
           </form>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
-            <div className="relative flex justify-center text-[10px] font-black uppercase tracking-widest"><span className="bg-slate-900 px-4 text-slate-600">Secure Handshake</span></div>
-          </div>
+          {/* SIGN UP */}
+          <form className="sign-up-form" onSubmit={handleSignUp}>
+            <h2 className="title">Sign up</h2>
 
-          <div className="grid grid-cols-2 gap-4">
-            <button className="flex items-center justify-center gap-3 py-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group">
-              <Chrome size={20} className="text-slate-400 group-hover:text-white" />
-              <span className="text-[10px] font-black text-slate-400 group-hover:text-white uppercase">Google</span>
+            <div className="input-field">
+              <i><User size={18} /></i>
+              <input
+                type="text"
+                placeholder="Username"
+                required
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+            </div>
+
+            <div className="input-field">
+              <i><Mail size={18} /></i>
+              <input
+                type="email"
+                placeholder="Email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+
+            <div className="input-field">
+              <i><Lock size={18} /></i>
+              <input
+                type="password"
+                placeholder="Password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+
+            {errorMsg && isSignUp && <p className="error-msg">{errorMsg}</p>}
+
+            <button type="submit" className="btn flex items-center justify-center gap-2" disabled={isLoading}>
+              {isLoading && isSignUp ? <Loader2 size={16} className="animate-spin" /> : null}
+              Sign up
             </button>
-            <button className="flex items-center justify-center gap-3 py-4 bg-white/5 border border-white/10 rounded-2xl hover:bg-white/10 transition-all group">
-              <Github size={20} className="text-slate-400 group-hover:text-white" />
-              <span className="text-[10px] font-black text-slate-400 group-hover:text-white uppercase">GitHub</span>
+
+            <p className="social-text">Or sign up with Google</p>
+
+            <div className="social-media">
+              <button type="button" onClick={handleGoogleAuth} className="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center hover:bg-white/10 transition-colors" disabled={isLoading}>
+                <Chrome size={20} className="text-white" />
+              </button>
+            </div>
+          </form>
+
+        </div>
+      </div>
+
+      <div className="panels-container">
+        <div className="panel left-panel">
+          <div className="content">
+            <h3>New here?</h3>
+            <p>Join SkillSwap and start learning, teaching and exchanging skills.</p>
+            <button
+              className="btn transparent"
+              onClick={() => setIsSignUp(true)}
+              type="button"
+            >
+              Sign up
             </button>
           </div>
         </div>
 
-        <p className="mt-10 text-center text-slate-500 text-[10px] font-black uppercase tracking-widest">
-          No Profile? <span className="text-indigo-400 cursor-pointer hover:underline">Request Initialization</span>
-        </p>
+        <div className="panel right-panel">
+          <div className="content">
+            <h3>One of us?</h3>
+            <p>Welcome back to SkillSwap. Sign in to continue your journey.</p>
+            <button
+              className="btn transparent"
+              onClick={() => setIsSignUp(false)}
+              type="button"
+            >
+              Sign in
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
-};
-
-export default AuthPage;
+}
