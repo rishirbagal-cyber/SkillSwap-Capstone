@@ -221,8 +221,13 @@ const MainApp: React.FC<{
     }
 
     try {
-      await firestoreService.updateUser(firebaseUser.uid, updatedUser);
+      await Promise.race([
+        firestoreService.updateUser(firebaseUser.uid, updatedUser),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Save operation timed out. Please try again.")), 10000))
+      ]);
+      setUser(prev => ({ ...(prev || {}), ...updatedUser } as Student));
       setIsLoginModalOpen(false);
+      navigate('/dashboard', { replace: true });
       triggerNotification(`Hello, ${name.split(' ')[0]}! Neural Link Established.`);
     } catch (err) {
       throw err;
@@ -361,9 +366,12 @@ const MainApp: React.FC<{
                         <>
                           <Dashboard onStartSession={handleStartSession} isSyncing={isSyncing} />
                           <LoginModal isOpen={true} onClose={() => navigate('/dashboard')} onLogin={async (n, c, b, s, w, a, bio) => {
-                            await firestoreService.saveUser(firebaseUser.uid, { name: n, college: c, branch: b, strongSkills: s, weakSkills: w, avatar: a, bio });
+                            await Promise.race([
+                              firestoreService.updateUser(firebaseUser.uid, { name: n, college: c, branch: b, strongSkills: s, weakSkills: w, avatar: a, bio }),
+                              new Promise((_, reject) => setTimeout(() => reject(new Error("Save operation timed out. Please try again.")), 10000))
+                            ]);
                             setUser(prev => prev ? { ...prev, name: n, college: c, branch: b, strongSkills: s, weakSkills: w, avatar: a, bio } : null);
-                            navigate('/dashboard');
+                            navigate('/dashboard', { replace: true });
                           }} currentUser={user} />
                         </>
                       } />

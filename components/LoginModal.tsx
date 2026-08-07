@@ -74,6 +74,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
       await onLogin(name, college, branch, strongSkills, weakSkills, avatar, bio);
     } catch (err: any) {
       setError(err.message || "An error occurred while saving your profile.");
+    } finally {
       setIsSaving(false);
     }
   };
