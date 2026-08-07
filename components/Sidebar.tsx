@@ -1,18 +1,29 @@
 
 import React from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { NAV_ITEMS } from '../constants';
 import { LogOut, Zap, Moon, Sun, X } from 'lucide-react';
 
 interface SidebarProps {
-  activeTab: string;
-  setActiveTab: (id: string) => void;
   isDark: boolean;
   toggleDark: () => void;
   onLogout: () => void;
   onClose?: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isDark, toggleDark, onLogout, onClose }) => {
+const routeMap: Record<string, string> = {
+  dashboard: '/dashboard',
+  matching: '/matches',
+  learnhub: '/learn',
+  sessions: '/sessions',
+  leaderboard: '/leaderboard',
+  marketplace: '/marketplace',
+  assistant: '/assistant',
+};
+
+const Sidebar: React.FC<SidebarProps> = ({ isDark, toggleDark, onLogout, onClose }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
   return (
     <div className="w-64 glass m-4 rounded-[2.5rem] h-[calc(100vh-2rem)] flex flex-col p-5 border-white/20 dark:border-white/5 relative">
       <div className="flex items-center justify-between mb-10 mt-2 px-1">
@@ -35,11 +46,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, isDark, togg
       <nav className="flex-1 space-y-1.5 overflow-y-auto pr-1 custom-scrollbar">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
-          const isActive = activeTab === item.id;
+          const path = routeMap[item.id] || `/${item.id}`;
+          const isActive = location.pathname.startsWith(path);
           return (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                navigate(path);
+                if (onClose) onClose();
+              }}
               className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all duration-300 relative group/btn ${
                 isActive 
                   ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-500/30' 

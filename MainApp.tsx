@@ -15,6 +15,7 @@ import LoginModal from './components/LoginModal';
 import AuthPage from './components/AuthPage';
 import VerifyEmailPage from './components/VerifyEmailPage';
 import AIAssistant from './components/AIAssistant';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Student } from './types';
 import { Menu, Zap, Bell, Layout, Users, Trophy, Target, User, Ghost, MessageSquareCode, RefreshCcw, Loader2, Book } from 'lucide-react';
 
@@ -38,7 +39,9 @@ const MainApp: React.FC<{
   const [isInitialized, setIsInitialized] = useState(false);
   const [profileLoading, setProfileLoading] = useState(true);
 
-  const [activeTab, setActiveTab] = useState('dashboard');
+  const navigate = useNavigate();
+  const location = useLocation();
+
   const [isDark, setIsDark] = useState(localStorage.getItem('skillswap_theme') === 'dark');
   const [activeSession, setActiveSession] = useState<{ partner: Student; skill: string; sessionId?: string } | null>(null);
   
@@ -123,8 +126,8 @@ const MainApp: React.FC<{
     triggerNotification("Neural Link Resynchronized.");
   };
 
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
+  const handleTabChange = (path: string) => {
+    navigate(path);
     setActiveSession(null);
     setIsSidebarOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -133,6 +136,7 @@ const MainApp: React.FC<{
   const handleStartSession = (partner: Student, skill: string, sessionId?: string) => {
     setActiveSession({ partner, skill, sessionId });
     setIsSidebarOpen(false);
+    navigate('/workspace');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -306,7 +310,7 @@ const MainApp: React.FC<{
 
       <div className="flex relative">
         <aside className={`fixed md:sticky top-0 h-screen z-50 transition-transform duration-500 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}>
-          <Sidebar activeTab={activeTab} setActiveTab={handleTabChange} isDark={isDark} toggleDark={() => setIsDark(!isDark)} onLogout={onLogout} onClose={() => setIsSidebarOpen(false)}/>
+          <Sidebar isDark={isDark} toggleDark={() => setIsDark(!isDark)} onLogout={onLogout} onClose={() => setIsSidebarOpen(false)}/>
         </aside>
 
         <main className="flex-1 min-w-0">
@@ -319,41 +323,54 @@ const MainApp: React.FC<{
                       {isSyncing ? <Loader2 size={16} className="animate-spin text-indigo-600" /> : <RefreshCcw size={16} className="text-indigo-600" />}
                       <span>{isSyncing ? 'Syncing...' : 'Neural Sync'}</span>
                     </button>
-                    <button onClick={() => setIsLoginModalOpen(true)} className="flex items-center gap-4 px-6 py-4 glass text-slate-900 dark:text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest border-indigo-100 dark:border-white/10 hover:border-indigo-600 hover:scale-105 active:scale-95 transition-all shadow-sm">
+                    <button onClick={() => { setIsLoginModalOpen(true); navigate('/profile'); }} className="flex items-center gap-4 px-6 py-4 glass text-slate-900 dark:text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest border-indigo-100 dark:border-white/10 hover:border-indigo-600 hover:scale-105 active:scale-95 transition-all shadow-sm">
                       <User size={16} className="text-indigo-600" />
                       <span>Profile</span>
                     </button>
                  </div>
                )}
 
-                {activeSession ? (
-                 <SessionModule currentUser={user!} partner={activeSession.partner} skill={activeSession.skill} onFinish={handleFinishSession} onCancel={() => setActiveSession(null)} />
+                {activeSession && location.pathname === '/workspace' ? (
+                 <SessionModule currentUser={user!} partner={activeSession.partner} skill={activeSession.skill} onFinish={handleFinishSession} onCancel={() => { setActiveSession(null); navigate('/dashboard'); }} />
                ) : (
                  <div className="pb-24 md:pb-0">
-                    {activeTab === 'dashboard' && <Dashboard onStartSession={handleStartSession} isSyncing={isSyncing} />}
-                    {activeTab === 'matching' && <Matching onStartSession={handleStartSession} />}
-                    {activeTab === 'learnhub' && <LearnHub />}
-                    {activeTab === 'leaderboard' && <Leaderboard />}
-                    {activeTab === 'assistant' && <AIAssistant />}
-                    {activeTab === 'sessions' && (
-                      <div className="h-[70vh] flex flex-col items-center justify-center text-center p-12 space-y-6">
-                        <div className="w-24 h-24 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 rounded-[2.5rem] flex items-center justify-center animate-bounce shadow-xl shadow-indigo-100/50 dark:shadow-none">
-                          <Ghost size={40} />
+                    <Routes>
+                      <Route path="/dashboard" element={<Dashboard onStartSession={handleStartSession} isSyncing={isSyncing} />} />
+                      <Route path="/matches" element={<Matching onStartSession={handleStartSession} />} />
+                      <Route path="/learn" element={<LearnHub />} />
+                      <Route path="/leaderboard" element={<Leaderboard />} />
+                      <Route path="/assistant" element={<AIAssistant />} />
+                      <Route path="/sessions" element={
+                        <div className="h-[70vh] flex flex-col items-center justify-center text-center p-12 space-y-6">
+                          <div className="w-24 h-24 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 rounded-[2.5rem] flex items-center justify-center animate-bounce shadow-xl shadow-indigo-100/50 dark:shadow-none">
+                            <Ghost size={40} />
+                          </div>
+                          <h2 className="text-4xl font-black tracking-tight">Ethereal History</h2>
+                          <p className="text-slate-500 max-w-sm font-medium leading-relaxed italic">Your learning journey is being indexed. Complete your first match to see records here.</p>
+                          <button onClick={() => handleTabChange('/matches')} className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all">Start Matching</button>
                         </div>
-                        <h2 className="text-4xl font-black tracking-tight">Ethereal History</h2>
-                        <p className="text-slate-500 max-w-sm font-medium leading-relaxed italic">Your learning journey is being indexed. Complete your first match to see records here.</p>
-                        <button onClick={() => handleTabChange('matching')} className="px-8 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:scale-105 transition-all">Start Matching</button>
-                      </div>
-                    )}
-                    {activeTab === 'marketplace' && (
-                      <div className="h-[70vh] flex flex-col items-center justify-center text-center p-12 space-y-8">
-                         <h2 className="text-8xl font-black text-slate-100 dark:text-slate-800 tracking-tighter uppercase italic select-none">V2 CORE</h2>
-                         <div className="space-y-2">
-                           <p className="text-indigo-600 font-black tracking-[0.4em] uppercase text-xs">Unlocking Next Quarter</p>
-                           <p className="text-slate-400 font-medium text-sm">Exclusive learning assets and badge upgrades.</p>
-                         </div>
-                      </div>
-                    )}
+                      } />
+                      <Route path="/marketplace" element={
+                        <div className="h-[70vh] flex flex-col items-center justify-center text-center p-12 space-y-8">
+                          <h2 className="text-8xl font-black text-slate-100 dark:text-slate-800 tracking-tighter uppercase italic select-none">V2 CORE</h2>
+                          <div className="space-y-2">
+                            <p className="text-indigo-600 font-black tracking-[0.4em] uppercase text-xs">Unlocking Next Quarter</p>
+                            <p className="text-slate-400 font-medium text-sm">Exclusive learning assets and badge upgrades.</p>
+                          </div>
+                        </div>
+                      } />
+                      <Route path="/profile" element={
+                        <>
+                          <Dashboard onStartSession={handleStartSession} isSyncing={isSyncing} />
+                          <LoginModal isOpen={true} onClose={() => navigate('/dashboard')} onLogin={async (n, c, b, s, w, a, bio) => {
+                            await firestoreService.saveUser(firebaseUser.uid, { name: n, college: c, branch: b, strongSkills: s, weakSkills: w, avatar: a, bio });
+                            setUser(prev => prev ? { ...prev, name: n, college: c, branch: b, strongSkills: s, weakSkills: w, avatar: a, bio } : null);
+                            navigate('/dashboard');
+                          }} currentUser={user} />
+                        </>
+                      } />
+                      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                    </Routes>
                  </div>
                )}
              </div>
@@ -364,13 +381,13 @@ const MainApp: React.FC<{
       {!activeSession && (
         <nav className="md:hidden fixed bottom-6 left-6 right-6 z-40 glass px-6 py-4 rounded-[2.5rem] border-white/20 dark:border-white/10 shadow-2xl flex items-center justify-around">
           {[
-            { id: 'dashboard', icon: Layout },
-            { id: 'matching', icon: Users },
-            { id: 'learnhub', icon: Book },
-            { id: 'leaderboard', icon: Trophy },
-            { id: 'assistant', icon: MessageSquareCode }
+            { id: 'dashboard', path: '/dashboard', icon: Layout },
+            { id: 'matching', path: '/matches', icon: Users },
+            { id: 'learnhub', path: '/learn', icon: Book },
+            { id: 'leaderboard', path: '/leaderboard', icon: Trophy },
+            { id: 'assistant', path: '/assistant', icon: MessageSquareCode }
           ].map(item => (
-            <button key={item.id} onClick={() => handleTabChange(item.id)} className={`p-3 rounded-2xl transition-all ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-xl scale-110' : 'text-slate-400'}`}><item.icon size={20} /></button>
+            <button key={item.id} onClick={() => handleTabChange(item.path)} className={`p-3 rounded-2xl transition-all ${location.pathname.startsWith(item.path) ? 'bg-indigo-600 text-white shadow-xl scale-110' : 'text-slate-400'}`}><item.icon size={20} /></button>
           ))}
         </nav>
       )}

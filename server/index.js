@@ -1,4 +1,7 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
+import { z } from "zod";
+import { buildSafePrompt, chatSchema, skillSchema, insightSchema, createSwapRequestSchema, respondSwapRequestSchema, updateSessionSchema, createReviewSchema } from "./utils.js";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
 import prisma from "./prismaClient.js";
@@ -33,6 +36,50 @@ app.use((req, res, next) => {
 
 app.use(express.json());
 
+// Trust proxy required for Render/Vercel/Heroku if behind a reverse proxy
+app.set("trust proxy", 1);
+
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many requests, please try again later." }
+});
+
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // Stricter limit for AI endpoints
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many AI requests, please try again later." }
+});
+
+// Apply general limit to all API routes
+app.use("/api", generalLimiter);
+
+// Apply strict limit specifically to AI routes
+app.use("/api/chat", aiLimiter);
+app.use("/api/quiz", aiLimiter);
+app.use("/api/roadmap", aiLimiter);
+
+// ================= ZOD VALIDATION =================
+const validateRequest = (schema) => (req, res, next) => {
+  try {
+    req.body = schema.parse(req.body);
+    next();
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ 
+        error: "Invalid request data", 
+        details: error.issues ? error.issues.map(e => ({ path: e.path.join('.'), message: e.message })) : []
+      });
+    }
+    return res.status(400).json({ error: "Invalid request data" });
+  }
+};
+// ==================================================
+
 const apiKey = process.env.GEMINI_API_KEY || "";
 let aiClient = null;
 if (apiKey) {
@@ -42,12 +89,21 @@ if (apiKey) {
   console.warn("⚠️ WARNING: GEMINI_API_KEY is not set in .env! Using Mock AI responses so the UI remains fully working. Please add GEMINI_API_KEY to .env for real responses.");
 }
 
-async function generateAIResponse(prompt) {
+
+function logTokenUsage(feature, metadata) {
+  if (!metadata) return;
+  console.log(`[Token Monitor] Feature: ${feature} | Input: ${metadata.promptTokenCount || 0} | Output: ${metadata.candidatesTokenCount || 0} | Total: ${metadata.totalTokenCount || 0} | Time: ${new Date().toISOString()}`);
+}
+
+async function generateAIResponse(prompt, feature = 'Unknown') {
   if (aiClient) {
     const response = await aiClient.models.generateContent({
       model: "gemini-2.5-flash",
       contents: prompt,
     });
+    if (response.usageMetadata) {
+      logTokenUsage(feature, response.usageMetadata);
+    }
     return response.text;
   }
   
@@ -71,10 +127,12 @@ async function generateAIResponse(prompt) {
 }
 
 // 🧠 Chat
-app.post("/api/chat", async (req, res) => {
+app.post("/api/chat", validateRequest(chatSchema), async (req, res) => {
   try {
     const { query } = req.body;
-    const text = await generateAIResponse(query);
+    const instruction = "You are a helpful learning assistant for a skill-sharing app called SkillSwap. Answer clearly and concisely.";
+    const prompt = buildSafePrompt(instruction, query);
+    const text = await generateAIResponse(prompt, 'Chat AI');
     res.json({ message: text });
   } catch (error) {
     console.error("CHAT ERROR:", error);
@@ -83,15 +141,12 @@ app.post("/api/chat", async (req, res) => {
 });
 
 // 🧪 Quiz
-app.post("/api/quiz", async (req, res) => {
+app.post("/api/quiz", validateRequest(skillSchema), async (req, res) => {
   try {
     const { skill } = req.body;
-    const prompt = `Create a 3-question multiple-choice quiz about "${skill}".
-Return ONLY valid JSON in this format:
-[
-  { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0 }
-]`;
-    const text = await generateAIResponse(prompt);
+    const instruction = `Create a 3-question multiple-choice quiz about the user's requested skill.\nReturn ONLY valid JSON in this format:\n[\n  { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0 }\n]`;
+    const prompt = buildSafePrompt(instruction, skill);
+    const text = await generateAIResponse(prompt, 'Quiz AI');
     // Remove markdown code blocks if the AI includes them
     const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const json = JSON.parse(cleanJson);
@@ -109,15 +164,12 @@ Return ONLY valid JSON in this format:
 });
 
 // 🗺️ Roadmap
-app.post("/api/roadmap", async (req, res) => {
+app.post("/api/roadmap", validateRequest(skillSchema), async (req, res) => {
   try {
     const { skill } = req.body;
-    const prompt = `Create a 4-step professional learning roadmap for "${skill}".
-Return ONLY valid JSON in this format:
-[
-  { "title": "...", "description": "..." }
-]`;
-    const text = await generateAIResponse(prompt);
+    const instruction = `Create a 4-step professional learning roadmap for the user's requested skill.\nReturn ONLY valid JSON in this format:\n[\n  { "title": "...", "description": "..." }\n]`;
+    const prompt = buildSafePrompt(instruction, skill);
+    const text = await generateAIResponse(prompt, 'Roadmap AI');
     const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const json = JSON.parse(cleanJson);
     res.json(json);
@@ -133,7 +185,7 @@ Return ONLY valid JSON in this format:
 });
 
 // 🌐 Resources
-app.post("/api/resources", (req, res) => {
+app.post("/api/resources", validateRequest(skillSchema), (req, res) => {
   const { skill } = req.body;
   res.json([
     { title: `${skill} Documentation`, uri: `https://www.google.com/search?q=${skill}+documentation` },
@@ -143,7 +195,7 @@ app.post("/api/resources", (req, res) => {
 });
 
 // 🚀 Insight
-app.post("/api/insight", (req, res) => {
+app.post("/api/insight", validateRequest(insightSchema), (req, res) => {
   const { skills } = req.body;
   res.json({ message: `You're progressing well in ${skills ? skills.join(", ") : "your skills"}. Keep building and practicing daily.` });
 });
@@ -162,7 +214,7 @@ async function ensureUser(uid) {
 }
 
 // 1. Skill Swap Requests
-app.post("/api/swap-requests", requireAuth, async (req, res) => {
+app.post("/api/swap-requests", requireAuth, validateRequest(createSwapRequestSchema), async (req, res) => {
   try {
     const { receiverUid, skillOffered, skillWanted } = req.body;
     const senderUid = req.user.uid;
@@ -209,7 +261,7 @@ app.get("/api/swap-requests", requireAuth, async (req, res) => {
   }
 });
 
-app.patch("/api/swap-requests/:id", requireAuth, async (req, res) => {
+app.patch("/api/swap-requests/:id", requireAuth, validateRequest(respondSwapRequestSchema), async (req, res) => {
   try {
     const { id } = req.params;
     const { action } = req.body; // 'accept' or 'reject'
@@ -268,7 +320,7 @@ app.get("/api/sessions", requireAuth, async (req, res) => {
   }
 });
 
-app.patch("/api/sessions/:id", requireAuth, async (req, res) => {
+app.patch("/api/sessions/:id", requireAuth, validateRequest(updateSessionSchema), async (req, res) => {
   try {
     const { id } = req.params;
     const uid = req.user.uid;
@@ -293,7 +345,7 @@ app.patch("/api/sessions/:id", requireAuth, async (req, res) => {
 });
 
 // 3. Reviews & XP
-app.post("/api/reviews", requireAuth, async (req, res) => {
+app.post("/api/reviews", requireAuth, validateRequest(createReviewSchema), async (req, res) => {
   try {
     const { sessionId, rating, comment } = req.body;
     const reviewerUid = req.user.uid;
@@ -308,30 +360,29 @@ app.post("/api/reviews", requireAuth, async (req, res) => {
 
     const revieweeUid = session.tutorUid === reviewerUid ? session.learnerUid : session.tutorUid;
 
-    const review = await prisma.review.create({
-      data: {
-        sessionId,
-        reviewerUid,
-        revieweeUid,
-        rating,
-        comment
-      }
-    });
-
-    // Award XP
     const xpAmount = rating * 10; // Simple XP logic
-    await prisma.xpTransaction.create({
-      data: {
-        userUid: revieweeUid,
-        amount: xpAmount,
-        reason: `Received a ${rating}-star review for session ${sessionId}`
-      }
-    });
-
-    await prisma.userReference.update({
-      where: { firebaseUid: revieweeUid },
-      data: { totalXp: { increment: xpAmount } }
-    });
+    const [review, xpTx, updatedUser] = await prisma.$transaction([
+      prisma.review.create({
+        data: {
+          sessionId,
+          reviewerUid,
+          revieweeUid,
+          rating,
+          comment
+        }
+      }),
+      prisma.xpTransaction.create({
+        data: {
+          userUid: revieweeUid,
+          amount: xpAmount,
+          reason: `Received a ${rating}-star review for session ${sessionId}`
+        }
+      }),
+      prisma.userReference.update({
+        where: { firebaseUid: revieweeUid },
+        data: { totalXp: { increment: xpAmount } }
+      })
+    ]);
 
     res.json(review);
   } catch (error) {
@@ -362,6 +413,10 @@ app.get("/api/leaderboard", async (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`AI Server running on port ${PORT}`);
-});
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, () => {
+    console.log(`AI Server running on port ${PORT}`);
+  });
+}
+
+export { app };
