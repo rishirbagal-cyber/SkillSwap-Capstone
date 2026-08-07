@@ -34,7 +34,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
         setIncomingRequests(reqs.filter((r: any) => r.status === 'PENDING' && r.receiverUid === auth.currentUser?.uid));
         setSessions(sess);
       } catch (e) {
-        console.error("Failed to load postgres data:", e);
+        // Silent
       }
     };
 

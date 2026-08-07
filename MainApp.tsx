@@ -62,7 +62,6 @@ const MainApp: React.FC<{
           const profile = await firestoreService.getUser(authUser.uid);
           setUser(profile);
         } catch (error) {
-          console.error("Error fetching user profile during login:", error);
           setUser(null);
         } finally {
           setIsInitialized(true);
@@ -186,7 +185,7 @@ const MainApp: React.FC<{
         const rating = Math.max(1, Math.min(5, Math.ceil(quizScore / 2)));
         await apiService.createReview(activeSession.sessionId, rating, `Automated review for scoring ${quizScore}/10 on quiz`);
       } catch (err) {
-        console.error("Failed to sync session to Postgres:", err);
+        triggerNotification("Could not sync session to Postgres, but XP was awarded.");
       }
     }
 
@@ -226,7 +225,6 @@ const MainApp: React.FC<{
       setIsLoginModalOpen(false);
       triggerNotification(`Hello, ${name.split(' ')[0]}! Neural Link Established.`);
     } catch (err) {
-      console.error("Profile Setup Error:", err);
       throw err;
     }
   };

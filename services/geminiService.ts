@@ -3,13 +3,7 @@ import { QuizQuestion, RoadmapStep, LearningResource } from "../types";
 // ─── Singleton API Key Config ─────────────────────────────────────────────────
 // Keys are read once at module load time (not per-request).
 
-console.log("ENV CHECK", {
-  hasGeminiKey: !!import.meta.env.VITE_GEMINI_API_KEY,
-  hasGeminiKey1: !!import.meta.env.VITE_GEMINI_KEY_1,
-  keyPrefix:
-    import.meta.env.VITE_GEMINI_API_KEY?.slice(0, 5) ||
-    import.meta.env.VITE_GEMINI_KEY_1?.slice(0, 5)
-});
+
 
 const GEMINI_KEYS = [
   import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GEMINI_KEY_1 || "",
@@ -41,7 +35,7 @@ let requestCount = 0;
 const CURRENT_MODEL = "gemini-2.5-flash-lite";
 
 function logDebug(action: string, details: any = {}) {
-  console.log(`[GeminiService][${new Date().toISOString()}] ${action}`, details);
+  // Silent
 }
 
 // Startup logging
@@ -57,8 +51,7 @@ logDebug("Service Initialized", {
  * Returns the text content or throws on non-OK status.
  */
 function logTokenUsage(feature: string, metadata: any) {
-  if (!metadata) return;
-  console.info(`[Token Monitor] Feature: ${feature} | Input: ${metadata.promptTokenCount || 0} | Output: ${metadata.candidatesTokenCount || 0} | Total: ${metadata.totalTokenCount || 0} | Time: ${new Date().toISOString()}`);
+  // Token monitoring is handled securely by the backend
 }
 
 async function fetchGemini(

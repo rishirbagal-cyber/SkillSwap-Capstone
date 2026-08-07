@@ -27,12 +27,10 @@ export async function loginWithGoogle() {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     });
-    console.log("New Google User written to Firestore");
   } else {
     await updateDoc(userRef, {
       updatedAt: serverTimestamp()
     });
-    console.log("Existing Google User logged in");
   }
 
   return user;
@@ -75,6 +73,5 @@ export async function signUpWithEmail(email: string, password: string, name: str
     updatedAt: serverTimestamp()
   });
 
-  console.log("User written to Firestore via Email Signup");
   return user;
 }

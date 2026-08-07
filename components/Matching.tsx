@@ -34,7 +34,6 @@ const Matching: React.FC<MatchingProps> = ({ onStartSession }) => {
       await apiService.createSwapRequest(partnerUid, skillOffered, skillWanted);
       alert('Skill Swap Request Sent successfully!');
     } catch (error) {
-      console.error(error);
       alert('Failed to send request. You might have already sent one.');
     } finally {
       setRequestingUid(null);

@@ -1,6 +1,7 @@
 import express from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
+import cors from "cors";
 import { buildSafePrompt, chatSchema, skillSchema, insightSchema, createSwapRequestSchema, respondSwapRequestSchema, updateSessionSchema, createReviewSchema } from "./utils.js";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
@@ -11,27 +12,20 @@ dotenv.config();
 
 const app = express();
 
-/* ================= CORS HARD FIX ================= */
-app.use((req, res, next) => {
-  const allowedOrigins = ['https://skillswap-grow.netlify.app', 'http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000'];
-  const origin = req.headers.origin;
-  
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-  } else if (!origin) {
-    res.setHeader("Access-Control-Allow-Origin", "https://skillswap-grow.netlify.app");
-  }
-
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-
-  if (req.method === "OPTIONS") {
-    return res.status(200).end();
-  }
-
-  next();
-});
+/* ================= CORS FIX ================= */
+const allowedOrigins = ['https://skillswap-grow.netlify.app', 'http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000'];
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: "GET,POST,PATCH,PUT,DELETE,OPTIONS",
+  allowedHeaders: "Content-Type,Authorization"
+}));
 /* ================================================ */
 
 app.use(express.json());

@@ -84,7 +84,7 @@ export const firestoreService = {
         callback(null);
       }
     }, (error) => {
-      console.error("Error subscribing to user:", error);
+      // Silent error handling
       callback(null);
     });
   }

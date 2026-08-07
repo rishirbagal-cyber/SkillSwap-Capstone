@@ -12,7 +12,7 @@ const Leaderboard: React.FC = () => {
 
   useEffect(() => {
     // Fetch true XP from PostgreSQL backend
-    apiService.getLeaderboard().then(setPgLeaderboard).catch(console.error);
+    apiService.getLeaderboard().then(setPgLeaderboard).catch(() => {});
 
     if (auth.currentUser) {
       const unsubUser = firestoreService.subscribeToUser(auth.currentUser.uid, setCurrentUser);

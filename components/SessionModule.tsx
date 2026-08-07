@@ -90,7 +90,6 @@ const SessionModule: React.FC<SessionModuleProps> = ({ currentUser, partner, ski
       }
     } catch (err: any) {
       if (err.name === 'AbortError') return;
-      console.error("Roadmap load failed:", err);
       const msg = err.message?.includes('rate limit')
         ? "⚠️ Rate limit reached (429). Please wait ~60 seconds and try again."
         : "Roadmap generation failed. Please try again.";
@@ -109,7 +108,6 @@ const SessionModule: React.FC<SessionModuleProps> = ({ currentUser, partner, ski
       const res = await geminiService.getWebResources(skill);
       setResources(res || []);
     } catch (err) {
-      console.error("Resources load failed:", err);
       setApiError("Could not fetch resources. Please try again.");
     } finally {
       setIsLoadingResources(false);
