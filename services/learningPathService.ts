@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { LearningPath, RoadmapDay } from '../types';
 import { aiService } from './aiService';
 import { firestoreService } from './firestoreService';
+import { streakService } from './streakService';
 
 export const learningPathService = {
   /**
@@ -133,6 +134,9 @@ export const learningPathService = {
       if (score === 8) xpAwarded = 40;
       else if (score === 9) xpAwarded = 45;
       else if (score === 10) xpAwarded = 50;
+      
+      // Authoritative daily streak increment - executes Firebase transaction instantly
+      await streakService.recordLearningActivity(userId, 'quiz');
     }
 
     let updated = false;
