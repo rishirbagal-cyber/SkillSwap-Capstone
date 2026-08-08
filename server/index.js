@@ -1,25 +1,37 @@
 import express from "express";
 import rateLimit from "express-rate-limit";
 import { z } from "zod";
-import cors from "cors";
-import { buildSafePrompt, chatSchema, skillSchema, insightSchema, createSwapRequestSchema, respondSwapRequestSchema, updateSessionSchema, createReviewSchema } from "./utils.js";
+import { buildSafePrompt, chatSchema, skillSchema, insightSchema, createSwapRequestSchema, respondSwapRequestSchema, updateSessionSchema, createReviewSchema, dayContentSchema, dayQuizSchema } from "./utils.js";
 import dotenv from "dotenv";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import prisma from "./prismaClient.js";
-import { requireAuth } from "./middleware/auth.js";
+import { requireAuth, initAuth } from "./middleware/auth.js";
 
 dotenv.config();
+
+initAuth();
 
 const app = express();
 
 /* ================= CORS FIX ================= */
-const allowedOrigins = ['https://skillswap-grow.netlify.app', 'http://localhost:5173', 'http://localhost:3000', 'http://localhost:5000'];
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true,
-  methods: "GET,POST,PATCH,PUT,DELETE,OPTIONS",
-  allowedHeaders: "Content-Type,Authorization"
-}));
+const allowedOrigins = ['https://skillswap-grow.netlify.app', 'http://localhost:5173', 'http://localhost:3000', 'http://localhost:3001', 'http://localhost:5000'];
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  } else if (!origin) {
+    res.setHeader('Access-Control-Allow-Origin', allowedOrigins[0]);
+  }
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PATCH,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Vary', 'Origin');
+  
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  next();
+});
 /* ================================================ */
 
 app.use(express.json());
@@ -28,30 +40,27 @@ app.use(express.json());
 app.set("trust proxy", 1);
 
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many requests, please try again later." }
 });
 
 const aiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 20, // Stricter limit for AI endpoints
+  windowMs: 15 * 60 * 1000,
+  max: 20,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many AI requests, please try again later." }
 });
 
-// Apply general limit to all API routes
 app.use("/api", generalLimiter);
-
-// Apply strict limit specifically to AI routes
 app.use("/api/chat", aiLimiter);
 app.use("/api/quiz", aiLimiter);
+app.use("/api/day-quiz", aiLimiter);
 app.use("/api/roadmap", aiLimiter);
 
-// ================= ZOD VALIDATION =================
 const validateRequest = (schema) => (req, res, next) => {
   try {
     req.body = schema.parse(req.body);
@@ -66,36 +75,23 @@ const validateRequest = (schema) => (req, res, next) => {
     return res.status(400).json({ error: "Invalid request data" });
   }
 };
-// ==================================================
 
 const apiKey = process.env.GEMINI_API_KEY || "";
 let aiClient = null;
 if (apiKey) {
-  aiClient = new GoogleGenAI({ apiKey });
+  aiClient = new GoogleGenerativeAI(apiKey);
   console.log("Loaded Gemini API Key:", apiKey.slice(0, 5) + "...");
 } else {
   console.warn("⚠️ WARNING: GEMINI_API_KEY is not set in .env! Using Mock AI responses so the UI remains fully working. Please add GEMINI_API_KEY to .env for real responses.");
 }
 
-
-function logTokenUsage(feature, metadata) {
-  if (!metadata) return;
-  console.log(`[Token Monitor] Feature: ${feature} | Input: ${metadata.promptTokenCount || 0} | Output: ${metadata.candidatesTokenCount || 0} | Total: ${metadata.totalTokenCount || 0} | Time: ${new Date().toISOString()}`);
-}
-
 async function generateAIResponse(prompt, feature = 'Unknown') {
   if (aiClient) {
-    const response = await aiClient.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
-    });
-    if (response.usageMetadata) {
-      logTokenUsage(feature, response.usageMetadata);
-    }
-    return response.text;
+    const model = aiClient.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const result = await model.generateContent(prompt);
+    return result.response.text();
   }
   
-  // Mock fallback logic based on prompt keywords:
   if (prompt.includes("multiple-choice quiz")) {
     return JSON.stringify([
       { question: "What is the primary purpose of this skill?", options: ["To build things", "To break things", "To eat things", "To sleep"], correctIndex: 0 },
@@ -103,18 +99,22 @@ async function generateAIResponse(prompt, feature = 'Unknown') {
       { question: "How long does it take to master?", options: ["1 Day", "1 Week", "Years of practice", "Never"], correctIndex: 2 }
     ]);
   } else if (prompt.includes("learning roadmap")) {
-    return JSON.stringify([
-      { title: "Step 1: The Basics", description: "Learn the fundamental concepts and setup your environment." },
-      { title: "Step 2: Core Features", description: "Dive deeper into the main features and build simple projects." },
-      { title: "Step 3: Advanced Topics", description: "Understand the complex parts and start building real-world applications." },
-      { title: "Step 4: Mastery", description: "Contribute to open source, build complex systems, and share your knowledge." }
-    ]);
+    const days = [];
+    for(let i=1; i<=30; i++) {
+      days.push({
+        day: i,
+        title: `Day ${i}: Fundamentals`,
+        topics: ["Topic 1", "Topic 2"],
+        learningObjective: "Understand the basics.",
+        difficulty: "Beginner"
+      });
+    }
+    return JSON.stringify(days);
   } else {
     return "This is a mock response because the GEMINI_API_KEY is not set. The UI is fully working! To get real AI responses, add a valid Gemini API key to your backend's .env file.";
   }
 }
 
-// 🧠 Chat
 app.post("/api/chat", validateRequest(chatSchema), async (req, res) => {
   try {
     const { query } = req.body;
@@ -128,47 +128,108 @@ app.post("/api/chat", validateRequest(chatSchema), async (req, res) => {
   }
 });
 
-// 🧪 Quiz
 app.post("/api/quiz", validateRequest(skillSchema), async (req, res) => {
   try {
     const { skill } = req.body;
     const instruction = `Create a 3-question multiple-choice quiz about the user's requested skill.\nReturn ONLY valid JSON in this format:\n[\n  { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0 }\n]`;
     const prompt = buildSafePrompt(instruction, skill);
     const text = await generateAIResponse(prompt, 'Quiz AI');
-    // Remove markdown code blocks if the AI includes them
     const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const json = JSON.parse(cleanJson);
     res.json(json);
   } catch (error) {
     console.error("QUIZ ERROR:", error);
     res.json([
-      {
-        question: `Which of these best describes ${req.body.skill}?`,
-        options: ["Concept", "Tool", "Framework", "Language"],
-        correctIndex: 0
-      }
+      { question: `Which of these best describes ${req.body.skill}?`, options: ["Concept", "Tool", "Framework", "Language"], correctIndex: 0 }
     ]);
   }
 });
 
-// 🗺️ Roadmap
 app.post("/api/roadmap", validateRequest(skillSchema), async (req, res) => {
   try {
     const { skill } = req.body;
-    const instruction = `Create a 4-step professional learning roadmap for the user's requested skill.\nReturn ONLY valid JSON in this format:\n[\n  { "title": "...", "description": "..." }\n]`;
+    const instruction = `Create a detailed exactly 30-day professional learning roadmap for the user's requested skill: ${skill}.
+    
+Return ONLY a valid JSON array of exactly 30 objects.
+Format each object exactly like this:
+{
+  "day": <number 1-30>,
+  "title": "<string, name of the day's topic>",
+  "topics": ["<string>", "<string>"],
+  "learningObjective": "<string>",
+  "difficulty": "<string: Beginner|Intermediate|Advanced>"
+}
+Do NOT wrap the response in markdown blocks like \`\`\`json. Return JUST the raw JSON array.`;
     const prompt = buildSafePrompt(instruction, skill);
     const text = await generateAIResponse(prompt, 'Roadmap AI');
     const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const json = JSON.parse(cleanJson);
+    if (!Array.isArray(json) || json.length !== 30) {
+      throw new Error(`AI generated ${json?.length} days instead of 30.`);
+    }
     res.json(json);
   } catch (error) {
     console.error("ROADMAP ERROR:", error);
-    res.json([
-      { title: "Foundations", description: `Learn the basics of ${req.body.skill}.` },
-      { title: "Core Skills", description: `Practice essential concepts of ${req.body.skill}.` },
-      { title: "Projects", description: `Build real-world projects using ${req.body.skill}.` },
-      { title: "Mastery", description: `Advance your expertise in ${req.body.skill}.` }
-    ]);
+    res.status(500).json({ error: "Failed to generate roadmap. Please try again." });
+  }
+});
+
+app.post("/api/day-content", validateRequest(dayContentSchema), async (req, res) => {
+  try {
+    const { skill, dayNumber, dayTitle, topics } = req.body;
+    const instruction = `Create detailed educational content for Day ${dayNumber} of a learning roadmap for ${skill}.
+The topic for today is: ${dayTitle}.
+Specific areas to cover: ${topics.join(", ")}.
+
+Return ONLY valid JSON in this precise format:
+{
+  "explanation": "<Detailed educational explanation of the topics>",
+  "examples": ["<Practical example 1>", "<Practical example 2>"],
+  "task": "<A small practical task for the user to complete today>",
+  "takeaways": ["<Key takeaway 1>", "<Key takeaway 2>"]
+}
+Do NOT wrap the response in markdown blocks like \`\`\`json. Return JUST the raw JSON object.`;
+
+    const prompt = buildSafePrompt(instruction, skill);
+    const text = await generateAIResponse(prompt, 'Day Content AI');
+    const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    const json = JSON.parse(cleanJson);
+    
+    res.json(json);
+  } catch (error) {
+    console.error("DAY CONTENT ERROR:", error);
+    res.status(500).json({ error: "Failed to generate day content. Please try again." });
+  }
+});
+
+app.post("/api/day-quiz", validateRequest(dayQuizSchema), async (req, res) => {
+  try {
+    const { skill, dayNumber, dayTitle, topics } = req.body;
+    const instruction = `Create an EXACTLY 10-question multiple-choice quiz about Day ${dayNumber} of learning ${skill}.
+The topic for today is: ${dayTitle}.
+Specific areas covered: ${topics.join(", ")}.
+
+Ensure there are EXACTLY 10 questions.
+Each question must have EXACTLY 4 options, and exactly 1 correct index (0-3).
+Return ONLY valid JSON in this precise format:
+[
+  { "question": "...", "options": ["A","B","C","D"], "correctIndex": 0 }
+]
+Do NOT wrap the response in markdown blocks like \`\`\`json. Return JUST the raw JSON array.`;
+
+    const prompt = buildSafePrompt(instruction, skill);
+    const text = await generateAIResponse(prompt, 'Day Quiz AI');
+    const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    const json = JSON.parse(cleanJson);
+    
+    if (!Array.isArray(json) || json.length !== 10) {
+       console.warn(`Day Quiz AI generated ${json?.length} questions instead of 10. Returning anyway, but might be less than 10.`);
+    }
+    
+    res.json(json);
+  } catch (error) {
+    console.error("DAY QUIZ ERROR:", error);
+    res.status(500).json({ error: "Failed to generate day quiz. Please try again." });
   }
 });
 

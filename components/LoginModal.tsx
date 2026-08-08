@@ -82,12 +82,14 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
   const currentAvatar = currentUser?.photoURL || currentUser?.avatar || null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-md animate-in fade-in duration-300" onClick={onClose} />
+    <div className={`fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8 transition-all duration-300 ${isOpen ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'}`}>
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" onClick={onClose} />
       
-      <div className="relative w-full max-w-2xl glass p-8 md:p-10 rounded-[3rem] border-white/20 dark:border-white/5 shadow-2xl animate-in zoom-in duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar bg-slate-900/90 text-white">
+      {/* Modal Container */}
+      <div className={`relative w-full max-w-4xl bg-slate-900/95 backdrop-blur-xl p-8 md:p-10 rounded-[2.5rem] border border-indigo-500/20 shadow-2xl max-h-[90vh] overflow-y-auto custom-scrollbar text-white transition-all duration-500 delay-100 ${isOpen ? 'scale-100 translate-y-0' : 'scale-95 translate-y-10'}`}>
         {currentUser?.profileComplete && (
-          <button onClick={onClose} className="absolute top-6 right-6 p-2 text-slate-400 hover:text-indigo-400 transition-colors">
+          <button onClick={onClose} className="absolute top-6 right-6 p-3 bg-white/5 rounded-full text-slate-400 hover:text-white hover:bg-white/10 transition-colors z-10">
             <X size={20} />
           </button>
         )}

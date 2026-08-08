@@ -1,11 +1,20 @@
 import { db } from './firebase';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, doc, setDoc } from 'firebase/firestore';
 import { ChatMessage } from '../types';
+import { activityService } from './activityService';
 
 export const chatService = {
   // Generate a deterministic unique chat ID between two users
   getChatId: (uid1: string, uid2: string) => {
     return [uid1, uid2].sort().join('_');
+  },
+
+  // Initialize conversation document idempotently so Firestore security rules allow the listener
+  initializeConversation: async (chatId: string, participants: string[]) => {
+    const conversationRef = doc(db, 'conversations', chatId);
+    await setDoc(conversationRef, {
+      participants,
+    }, { merge: true }); // Only merges participants, doesn't overwrite messages/timestamps
   },
 
   // Send a message and update conversation metadata
@@ -29,6 +38,24 @@ export const chatService = {
       createdAt: serverTimestamp(),
       read: false
     });
+
+    // Record activity for sender
+    const partnerUid = participants.find(uid => uid !== senderId) || participants[0];
+    const todayStr = activityService.getLocalDateString();
+    const activityId = `chat_${partnerUid}_${todayStr}`;
+    
+    // Execute asynchronously without blocking the message sending flow
+    activityService.recordActivity(
+      senderId,
+      activityId,
+      'chat',
+      'Sent message',
+      partnerUid,
+      {
+        partnerUid,
+        chatId
+      }
+    );
   },
 
   // Subscribe to real-time messages for a conversation

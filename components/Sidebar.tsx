@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { NAV_ITEMS } from '../constants';
 import { LogOut, Zap, Moon, Sun, X } from 'lucide-react';
 
@@ -27,7 +27,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isDark, toggleDark, onLogout, onClose
   return (
     <div className="w-64 glass m-4 rounded-[2.5rem] h-[calc(100vh-2rem)] flex flex-col p-5 border-white/20 dark:border-white/5 relative">
       <div className="flex items-center justify-between mb-10 mt-2 px-1">
-        <div className="flex items-center gap-3">
+        <Link 
+          to="/dashboard" 
+          className="flex items-center gap-3 hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-xl"
+          aria-label="SkillSwap Home"
+          onClick={() => {
+            if (onClose) onClose();
+          }}
+        >
           <div className="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-fuchsia-500 rounded-xl shadow-lg flex items-center justify-center shrink-0">
             <Zap size={20} className="text-white fill-current" />
           </div>
@@ -35,7 +42,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isDark, toggleDark, onLogout, onClose
             <span className="text-slate-900 dark:text-white">Skill</span>
             <span className="text-indigo-600 dark:text-cyan-400 ml-0.5">Swap</span>
           </h1>
-        </div>
+        </Link>
         {onClose && (
           <button onClick={onClose} className="md:hidden p-2 text-slate-400 hover:text-indigo-600 transition-colors">
             <X size={20} />

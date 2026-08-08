@@ -19,9 +19,25 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, currentUser, p
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    let isMounted = true;
+
     if (isOpen && currentUser?.uid && partner?.uid) {
       const chatId = chatService.getChatId(currentUser.uid, partner.uid);
-      const unsubscribe = chatService.subscribeToMessages(chatId, setMessages);
+      
+      const setupChat = async () => {
+        try {
+          // Initialize conversation idempotently to ensure Firestore rules allow the listener
+          await chatService.initializeConversation(chatId, [currentUser.uid, partner.uid]);
+          if (isMounted) {
+            unsubscribe = chatService.subscribeToMessages(chatId, setMessages);
+          }
+        } catch (error) {
+          console.error("Failed to initialize chat:", error);
+        }
+      };
+
+      setupChat();
       
       // Listen for partner's online status
       const partnerStatusRef = ref(rtdb, `/status/${partner.uid}`);
@@ -31,7 +47,8 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, currentUser, p
       });
 
       return () => {
-        unsubscribe();
+        isMounted = false;
+        if (unsubscribe) unsubscribe();
         // Firebase RTDB onValue returns an unsubscribe function in modular SDK
         unsubscribeStatus();
       };
@@ -56,14 +73,14 @@ const ChatDrawer: React.FC<ChatDrawerProps> = ({ isOpen, onClose, currentUser, p
       {/* Backdrop */}
       {isOpen && (
         <div 
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100]"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] xl:hidden"
           onClick={onClose}
         />
       )}
       
       {/* Drawer */}
       <div 
-        className={`fixed top-0 right-0 h-full w-full md:w-96 bg-white dark:bg-slate-900 shadow-2xl z-[101] transform transition-transform duration-300 flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`fixed xl:sticky top-0 right-0 h-[100dvh] xl:h-screen w-full sm:w-96 xl:w-96 shrink-0 bg-white dark:bg-slate-900 shadow-2xl z-[101] flex flex-col transition-all duration-300 ${isOpen ? 'translate-x-0 xl:translate-x-0 xl:border-l xl:border-slate-200 dark:xl:border-slate-800' : 'translate-x-full xl:translate-x-0 xl:w-0 xl:border-none overflow-hidden xl:opacity-0'}`}
       >
         {partner && (
           <>

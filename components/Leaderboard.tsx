@@ -8,11 +8,8 @@ import { Award, Crown, User } from 'lucide-react';
 const Leaderboard: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [currentUser, setCurrentUser] = useState<Student | null>(null);
-  const [pgLeaderboard, setPgLeaderboard] = useState<{firebaseUid: string, totalXp: number}[]>([]);
 
   useEffect(() => {
-    // Fetch true XP from PostgreSQL backend
-    apiService.getLeaderboard().then(setPgLeaderboard).catch(() => {});
 
     if (auth.currentUser) {
       const unsubUser = firestoreService.subscribeToUser(auth.currentUser.uid, setCurrentUser);
@@ -26,18 +23,8 @@ const Leaderboard: React.FC = () => {
     }
   }, []);
 
-  // Merge Postgres XP with Firestore profiles
-  const rankedStudents = pgLeaderboard.length > 0 
-    ? pgLeaderboard.map(pg => {
-        const profile = students.find(s => s.uid === pg.firebaseUid);
-        return {
-          ...(profile || {} as Student),
-          id: pg.firebaseUid,
-          uid: pg.firebaseUid,
-          points: pg.totalXp
-        };
-      }).filter(s => s.name) // Ensure profile exists
-    : students.sort((a, b) => (b.points || 0) - (a.points || 0)); // Fallback if pg fails
+  // Firebase is the authoritative source for XP, Rank, and Streaks
+  const rankedStudents = [...students].sort((a, b) => (b.points || 0) - (a.points || 0));
 
   return (
     <div className="p-5 md:p-10 max-w-5xl mx-auto space-y-8 animate-in fade-in duration-700">

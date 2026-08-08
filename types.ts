@@ -39,6 +39,7 @@ export interface Student {
   sessionsCount?: number;
   profileComplete?: boolean;
   quizHistory?: QuizResult[];
+  lastActiveDate?: string;
 }
 
 export interface QuizResult {
@@ -59,6 +60,47 @@ export type SessionMode = 'F2F' | 'ONLINE';
 export interface RoadmapStep {
   title: string;
   description: string;
+}
+
+export interface DayContent {
+  explanation: string;
+  examples: string[];
+  keyPoints: string[];
+  exercise: string;
+  prerequisites: string;
+}
+
+export interface RoadmapDay {
+  day: number;
+  title: string;
+  topics: string[];
+  learningObjective: string;
+  difficulty?: string;
+  
+  content?: DayContent;
+
+  // Future fields placeholders:
+  notes?: string;
+  quiz?: any;
+  bestScore?: number;
+  passed?: boolean;
+  xpAwarded?: number;
+  completedAt?: number;
+}
+
+export interface LearningPath {
+  id: string;
+  userId: string;
+  skill: string;
+  normalizedSkill: string;
+  createdAt: number;
+  updatedAt: number;
+  status: 'active' | 'mastered';
+  currentDay: number;
+  highestUnlockedDay: number;
+  generatedThroughDay: number;
+  masteryStatus: number;
+  roadmapDays: RoadmapDay[];
 }
 
 export interface LearningResource {

@@ -2,13 +2,16 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { firestoreService } from '../services/firestoreService';
 import { apiService } from '../services/apiService';
-import { auth } from '../services/firebase';
+import { auth, rtdb } from '../services/firebase';
+import { onValue, ref } from 'firebase/database';
 
 import { 
   Award, BookOpen, Star, TrendingUp, Zap, Target, Flame, 
-  Activity, Sparkles, Clock, Users, BrainCircuit, ArrowRight, Globe, User
+  Activity, Sparkles, Clock, Users, BrainCircuit, ArrowRight, Globe, User, MessageSquare, Radio
 } from 'lucide-react';
 import { Student } from '../types';
+import { activityService, ActivityRecord } from '../services/activityService';
+import { useNavigate } from 'react-router-dom';
 
 interface DashboardProps {
   onStartSession?: (partner: Student, skill: string, sessionId?: string) => void;
@@ -20,8 +23,10 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [insight] = useState<string>("Every skill you master today is a node in the network of your future.");
   const [isMounted, setIsMounted] = useState(false);
-  const [incomingRequests, setIncomingRequests] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [activities, setActivities] = useState<ActivityRecord[]>([]);
+  const [liveUsersCount, setLiveUsersCount] = useState<number>(0);
+  const navigate = useNavigate();
 
   useEffect(() => {
     setIsMounted(true);
@@ -29,9 +34,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
     // Fetch requests & sessions from Postgres
     const fetchRealData = async () => {
       try {
-        const reqs = await apiService.getSwapRequests();
         const sess = await apiService.getSessions();
-        setIncomingRequests(reqs.filter((r: any) => r.status === 'PENDING' && r.receiverUid === auth.currentUser?.uid));
         setSessions(sess);
       } catch (e) {
         // Silent
@@ -44,9 +47,33 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
       const unsubUsers = firestoreService.subscribeToUsers((allUsers) => {
         setStudents(allUsers.filter(s => s.uid !== auth.currentUser?.uid));
       });
+      
+      const unsubActivities = activityService.subscribeToRecentActivities(auth.currentUser.uid, (data) => {
+        setActivities(data);
+      }, 15);
+
+      const presenceRef = ref(rtdb, 'presence');
+      const unsubPresence = onValue(presenceRef, (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          let count = 0;
+          Object.keys(data).forEach(uid => {
+            const connections = data[uid].connections;
+            if (connections && Object.keys(connections).length > 0) {
+              count++;
+            }
+          });
+          setLiveUsersCount(count);
+        } else {
+          setLiveUsersCount(0);
+        }
+      });
+
       return () => {
         unsubUser();
         unsubUsers();
+        unsubActivities();
+        unsubPresence();
       };
     }
   }, []);
@@ -114,7 +141,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
   if (!isMounted || !user) return null;
 
   const completedTopicsCount = (user.completedTopics || []).length;
-  const sessionsCount = sessions.length; // Use real sessions count
+  const sessionsCount = user.sessionsCount || 0; // Use authoritative Firestore count for instant realtime updates
 
   return (
     <div className="p-6 md:p-10 lg:p-16 space-y-12 animate-in fade-in duration-1000">
@@ -154,21 +181,26 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
           </div>
         </div>
         
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-6 w-full lg:w-auto">
-          <div className="glass p-6 rounded-[2.5rem] border-orange-100 dark:border-orange-500/20 text-center flex flex-col items-center group hover:scale-105 transition-all">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6 w-full lg:w-auto">
+          <div className="glass p-4 sm:p-6 rounded-[2.5rem] border-orange-100 dark:border-orange-500/20 text-center flex flex-col items-center group hover:scale-105 transition-all">
             <Flame className="text-orange-500 mb-2 group-hover:scale-110 transition-transform" size={32} />
             <div className="text-3xl font-black dark:text-white">{user.streak || 0}</div>
             <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Daily Streak</div>
           </div>
-          <div className="glass p-6 rounded-[2.5rem] border-cyan-100 dark:border-cyan-500/20 text-center flex flex-col items-center group hover:scale-105 transition-all">
+          <div className="glass p-4 sm:p-6 rounded-[2.5rem] border-cyan-100 dark:border-cyan-500/20 text-center flex flex-col items-center group hover:scale-105 transition-all">
             <Zap className="text-cyan-500 mb-2 group-hover:scale-110 transition-transform" size={32} />
             <div className="text-3xl font-black dark:text-white">{user.points || 0}</div>
             <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Total Power</div>
           </div>
-          <div className="hidden md:flex glass p-6 rounded-[2.5rem] border-indigo-100 dark:border-indigo-500/20 text-center flex flex-col items-center group hover:scale-105 transition-all">
+          <div className="glass p-4 sm:p-6 rounded-[2.5rem] border-indigo-100 dark:border-indigo-500/20 text-center flex flex-col items-center group hover:scale-105 transition-all">
             <Globe className="text-indigo-600 mb-2 group-hover:scale-110 transition-transform" size={32} />
             <div className="text-3xl font-black dark:text-white">{(user.points || 0) > 0 ? (user.rank || 'Novice') : '--'}</div>
             <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Global Rank</div>
+          </div>
+          <div className="glass p-4 sm:p-6 rounded-[2.5rem] border-green-100 dark:border-green-500/20 text-center flex flex-col items-center group hover:scale-105 transition-all">
+            <Radio className="text-green-500 mb-2 group-hover:scale-110 transition-transform animate-pulse" size={32} />
+            <div className="text-3xl font-black dark:text-white">{liveUsersCount}</div>
+            <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Live Users</div>
           </div>
         </div>
       </header>
@@ -262,21 +294,72 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
               <Activity className="text-indigo-600" size={20} /> Neural Activity
             </h3>
             <div className="space-y-10 overflow-y-auto pr-2 custom-scrollbar flex-1 max-h-[400px]">
-              {[
-                { text: `Profile Synced to Firestore.`, time: 'Now', icon: Target, color: 'text-indigo-500' },
-                { text: `${sessionsCount} active learning sessions.`, time: 'Recent', icon: Users, color: 'text-green-500' },
-                { text: `${completedTopicsCount} topics mastered.`, time: 'Ongoing', icon: BookOpen, color: 'text-amber-500' },
-              ].map((act, i) => (
-                <div key={i} className="flex gap-6 items-start group">
-                  <div className={`p-3 rounded-2xl bg-white dark:bg-slate-800 ${act.color} group-hover:scale-110 transition-all shadow-md`}>
-                    <act.icon size={18} />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-black text-slate-700 dark:text-slate-200 leading-tight mb-2">{act.text}</p>
-                    <p className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1.5"><Clock size={10}/> {act.time}</p>
-                  </div>
-                </div>
-              ))}
+              {activities.length === 0 ? (
+                <div className="text-center text-slate-500 text-sm mt-10">No recent activity. Connect with someone to get started!</div>
+              ) : (
+                activities.map((act) => {
+                  let Icon = Target;
+                  let color = 'text-slate-500';
+                  
+                  if (act.type === 'chat') { Icon = MessageSquare; color = 'text-blue-500'; }
+                  else if (act.type === 'session') { Icon = Users; color = 'text-indigo-500'; }
+                  else if (act.type === 'quiz') { Icon = BookOpen; color = 'text-amber-500'; }
+                  else if (act.type === 'learning_task') { Icon = Target; color = 'text-green-500'; }
+
+                  const d = new Date(act.timestamp);
+                  const now = new Date();
+                  const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+                  let timeLabel = d.toLocaleDateString();
+                  if (diffDays === 0 && d.getDate() === now.getDate()) timeLabel = 'Today';
+                  else if (diffDays <= 1 && d.getDate() !== now.getDate()) timeLabel = 'Yesterday';
+
+                  let titleText = act.title;
+                  let descriptionText = act.description;
+
+                  if (act.type === 'chat') {
+                    const partner = students.find(s => s.uid === act.description);
+                    const name = partner ? partner.name.split(' ')[0] : 'peer';
+                    titleText = `Chatted with ${name}`;
+                    descriptionText = '';
+                  }
+
+                  let isClickable = false;
+                  let handleClick = () => {};
+
+                  if (act.type === 'chat' && act.metadata?.partnerUid) {
+                    isClickable = true;
+                    handleClick = () => navigate('/matches', { state: { openChatWith: act.metadata!.partnerUid } });
+                  } else if (act.type === 'session') {
+                    isClickable = true;
+                    handleClick = () => navigate('/sessions');
+                  } else if (act.type === 'quiz') {
+                    isClickable = true;
+                    handleClick = () => navigate('/learn');
+                  }
+
+                  return (
+                    <div 
+                      key={act.id} 
+                      onClick={handleClick}
+                      className={`flex gap-6 items-start group ${isClickable ? 'cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-800/50 p-2 -m-2 rounded-2xl transition-colors' : ''}`}
+                    >
+                      <div className={`p-3 rounded-2xl bg-white dark:bg-slate-800 ${color} group-hover:scale-110 transition-all shadow-md`}>
+                        <Icon size={18} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-black text-slate-700 dark:text-slate-200 leading-tight mb-1">{titleText}</p>
+                        {descriptionText && <p className="text-[10px] text-slate-500 mb-2 truncate">{descriptionText}</p>}
+                        <p className="text-[9px] font-black text-slate-400 uppercase flex items-center gap-1.5"><Clock size={10}/> {timeLabel}</p>
+                      </div>
+                      {isClickable && (
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ArrowRight size={14} className="text-slate-400" />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
@@ -288,77 +371,18 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
             { label: 'Sessions Completed', val: sessionsCount, icon: Target, color: 'text-fuchsia-600', bg: 'bg-fuchsia-50 dark:bg-fuchsia-500/10' },
             { label: 'Mentor Rating', val: user.teachingScore || 0, icon: Star, color: 'text-cyan-600', bg: 'bg-cyan-50 dark:bg-cyan-500/10' }
           ].map((s, i) => (
-            <div key={i} className="neo-card p-10 rounded-[3rem] flex items-center gap-10 group hover:translate-y-[-5px] transition-all">
-              <div className={`p-6 rounded-[2rem] ${s.bg} ${s.color} group-hover:scale-110 transition-all shadow-inner`}>
-                <s.icon size={36} />
+            <div key={i} className="neo-card p-6 sm:p-8 rounded-[3rem] flex items-center gap-4 sm:gap-6 group hover:translate-y-[-5px] transition-all">
+              <div className={`p-4 sm:p-6 flex-shrink-0 rounded-[2rem] ${s.bg} ${s.color} group-hover:scale-110 transition-all shadow-inner`}>
+                <s.icon size={32} className="sm:w-9 sm:h-9" />
               </div>
-              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
-                <p className="text-5xl font-black dark:text-white tracking-tighter leading-none">{s.val}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-tight">{s.label}</p>
+                <p className="text-4xl sm:text-5xl font-black dark:text-white tracking-tighter leading-none truncate">{s.val}</p>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Dynamic Data from PostgreSQL */}
-        <div className="lg:col-span-12 grid grid-cols-1 md:grid-cols-2 gap-8">
-           <div className="neo-card p-8 rounded-[3rem]">
-             <h3 className="text-xl font-black mb-6 dark:text-white">Incoming Requests</h3>
-             {incomingRequests.length === 0 ? (
-               <p className="text-slate-500 font-medium">No pending requests.</p>
-             ) : (
-               <div className="space-y-4">
-                 {incomingRequests.map(req => {
-                   const sender = students.find(s => s.uid === req.senderUid);
-                   return (
-                     <div key={req.id} className="p-4 glass border-indigo-100 rounded-2xl flex justify-between items-center">
-                       <div>
-                         <p className="font-bold dark:text-white">{sender?.name || req.senderUid} wants to learn <span className="text-indigo-600">{req.skillWanted}</span></p>
-                       </div>
-                       <div className="flex gap-2">
-                         <button onClick={async () => {
-                           await apiService.respondToSwapRequest(req.id, 'accept');
-                           setIncomingRequests(prev => prev.filter(r => r.id !== req.id));
-                           alert('Request accepted! Session created.');
-                         }} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Accept</button>
-                         <button onClick={async () => {
-                           await apiService.respondToSwapRequest(req.id, 'reject');
-                           setIncomingRequests(prev => prev.filter(r => r.id !== req.id));
-                         }} className="px-4 py-2 bg-red-100 text-red-600 rounded-xl text-xs font-bold">Reject</button>
-                       </div>
-                     </div>
-                   );
-                 })}
-               </div>
-             )}
-           </div>
-
-           <div className="neo-card p-8 rounded-[3rem]">
-             <h3 className="text-xl font-black mb-6 dark:text-white">Active Sessions</h3>
-             {sessions.filter(s => s.status === 'SCHEDULED').length === 0 ? (
-               <p className="text-slate-500 font-medium">No active sessions.</p>
-             ) : (
-               <div className="space-y-4">
-                 {sessions.filter(s => s.status === 'SCHEDULED').map(sess => {
-                   const partnerUid = sess.tutorUid === auth.currentUser?.uid ? sess.learnerUid : sess.tutorUid;
-                   const partner = students.find(s => s.uid === partnerUid);
-                   return (
-                     <div key={sess.id} className="p-4 glass border-indigo-100 rounded-2xl flex justify-between items-center">
-                       <div>
-                         <p className="font-bold dark:text-white">Session with {partner?.name || partnerUid}</p>
-                       </div>
-                       <button onClick={() => {
-                         if (partner) {
-                           onStartSession?.(partner, sess.request?.skillOffered || 'Skill', sess.id);
-                         }
-                       }} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold">Start</button>
-                     </div>
-                   );
-                 })}
-               </div>
-             )}
-           </div>
-        </div>
       </div>
     </div>
   );

@@ -1,23 +1,24 @@
 import { initializeApp, cert, getApps } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 
-// Initialize Firebase Admin
-try {
-  if (getApps().length === 0) {
-    const serviceAccountKeyStr = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    if (serviceAccountKeyStr) {
-      const serviceAccount = JSON.parse(serviceAccountKeyStr);
-      initializeApp({
-        credential: cert(serviceAccount)
-      });
-      console.log('Firebase Admin Initialized successfully.');
-    } else {
-      console.warn('⚠️ WARNING: FIREBASE_SERVICE_ACCOUNT_KEY is not set in .env. Firebase Admin Auth will fail.');
+export const initAuth = () => {
+  try {
+    if (getApps().length === 0) {
+      const serviceAccountKeyStr = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+      if (serviceAccountKeyStr) {
+        const serviceAccount = JSON.parse(serviceAccountKeyStr);
+        initializeApp({
+          credential: cert(serviceAccount)
+        });
+        console.log('Firebase Admin Initialized successfully.');
+      } else {
+        console.warn('⚠️ WARNING: FIREBASE_SERVICE_ACCOUNT_KEY is not set in .env. Firebase Admin Auth will fail.');
+      }
     }
+  } catch (error) {
+    console.error('Failed to initialize Firebase Admin:', error);
   }
-} catch (error) {
-  console.error('Failed to initialize Firebase Admin:', error);
-}
+};
 
 export const requireAuth = async (req, res, next) => {
   const authHeader = req.headers.authorization;

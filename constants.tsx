@@ -1,6 +1,6 @@
 
 import { Student, Badge, SkillCategory } from './types';
-import { Layout, Users, Book, Trophy, Target, MessageSquareCode } from 'lucide-react';
+import { Layout, Users, Book, Trophy, Target, MessageSquareCode, Inbox } from 'lucide-react';
 
 export const SKILL_CATEGORIES: SkillCategory[] = [
   'Development', 'AI & Data', 'Design', 'Academics', 'Soft Skills'
@@ -35,6 +35,7 @@ export const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.or
 
 export const NAV_ITEMS = [
   { id: 'dashboard', label: 'Dashboard', icon: Layout },
+  { id: 'requests', label: 'Requests', icon: Inbox },
   { id: 'matching', label: 'Explore Hub', icon: Users },
   { id: 'learnhub', label: 'Learn Hub', icon: Book },
   { id: 'sessions', label: 'History', icon: Book },

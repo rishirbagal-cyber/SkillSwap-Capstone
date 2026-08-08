@@ -1,7 +1,6 @@
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Sparkles, BrainCircuit, Bot, User, Loader2, Zap } from 'lucide-react';
-import { geminiService } from '../services/geminiService';
+import { aiService } from '../services/aiService';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -48,7 +47,7 @@ const AIAssistant: React.FC = () => {
     abortRef.current = controller;
 
     try {
-      const responseText = await geminiService.askAssistant(userMsg, controller.signal);
+      const responseText = await aiService.askAssistant(userMsg, controller.signal);
 
       // Only update state if the request wasn't aborted (component still mounted).
       if (!controller.signal.aborted) {
@@ -63,7 +62,7 @@ const AIAssistant: React.FC = () => {
         error.message?.toLowerCase().includes('too many');
 
       const errorMsg = isRateLimit
-        ? "⚠️ Rate limit reached. Gemini's free tier allows ~15 requests/minute. Please wait a moment and try again."
+        ? "⚠️ Rate limit reached. The AI's free tier allows limited requests per minute. Please wait a moment and try again."
         : "Neural handshake failed. Please check your connection and try again.";
 
       setMessages(prev => [...prev, { role: 'assistant', content: errorMsg }]);
@@ -97,12 +96,6 @@ const AIAssistant: React.FC = () => {
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
               <span className="text-[10px] font-black uppercase text-indigo-600 tracking-widest">Core Consciousness Active</span>
             </div>
-          </div>
-        </div>
-        <div className="hidden sm:flex gap-3">
-          <div className="px-4 py-2 glass rounded-2xl border-indigo-100 dark:border-white/10 flex items-center gap-2">
-            <Zap size={14} className="text-indigo-600" />
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Flash-Logic Enabled</span>
           </div>
         </div>
       </header>

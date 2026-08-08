@@ -1,14 +1,14 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Student, SessionMode, QuizQuestion, RoadmapStep, LearningResource, ChatMessage } from '../types';
-import { geminiService } from '../services/geminiService';
+import { aiService } from '../services/aiService';
+import { learningPathService } from '../services/learningPathService';
 import { chatService } from '../services/chatService';
 import { Clock, MapPin, MessageSquare, Monitor, Send, Search, Edit3, Zap, Sparkles, BookOpen, Compass, ChevronRight, Star, ShieldCheck, Video, Layout } from 'lucide-react';
 
 interface SessionModuleProps {
   currentUser: Student;
   partner: Student;
-  // Use string for skill name as it's the primary identifier and used by Gemini services
+  // Use string for skill name as it's the primary identifier and used by AI services
   skill: string;
   onFinish: (score: number) => void;
   onCancel: () => void;
@@ -35,7 +35,7 @@ const SessionModule: React.FC<SessionModuleProps> = ({ currentUser, partner, ski
   const [newMessage, setNewMessage] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // AbortController — cancels in-flight Gemini requests when the component unmounts.
+  // AbortController — cancels in-flight AI requests when the component unmounts.
   // This makes the component React Strict Mode safe (double-mount/unmount cycle).
   const abortRef = useRef<AbortController | null>(null);
   useEffect(() => {
@@ -81,10 +81,19 @@ const SessionModule: React.FC<SessionModuleProps> = ({ currentUser, partner, ski
     abortRef.current = controller;
 
     try {
-      const map = await geminiService.getLearningRoadmap(skill, controller.signal);
+      let path = await learningPathService.getLearningPath(currentUser!.uid, skill);
+      if (!path) {
+        path = await learningPathService.generateAndSaveLearningPath(currentUser!.uid, skill, controller.signal);
+      }
+      
       if (controller.signal.aborted) return;
-      if (map && map.length > 0) {
-        setRoadmap(map);
+      if (path && path.roadmapDays && path.roadmapDays.length > 0) {
+        // Map persistent RoadmapDays to the UI format expected by SessionModule
+        const mappedRoadmap = path.roadmapDays.map(d => ({
+          title: `Day ${d.day}: ${d.title}`,
+          description: d.learningObjective
+        }));
+        setRoadmap(mappedRoadmap);
       } else {
         setApiError("Roadmap generation failed. Please try again.");
       }
@@ -105,7 +114,7 @@ const SessionModule: React.FC<SessionModuleProps> = ({ currentUser, partner, ski
     setIsLoadingResources(true);
     setApiError(null);
     try {
-      const res = await geminiService.getWebResources(skill);
+      const res = await aiService.getWebResources(skill);
       setResources(res || []);
     } catch (err) {
       setApiError("Could not fetch resources. Please try again.");
@@ -129,7 +138,7 @@ const SessionModule: React.FC<SessionModuleProps> = ({ currentUser, partner, ski
     abortRef.current = controller;
 
     try {
-      const questions = await geminiService.generateQuiz(skill, controller.signal);
+      const questions = await aiService.generateQuiz(skill, controller.signal);
       if (controller.signal.aborted) return;
       if (!questions || questions.length === 0) {
         setApiError("Quiz generation returned no questions. Please try again.");

@@ -1,23 +1,26 @@
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, rtdb } from "./services/firebase";
-import { ref, onDisconnect, set, serverTimestamp as rtdbTimestamp } from "firebase/database";
+import { ref, onDisconnect, set, serverTimestamp as rtdbTimestamp, onValue, push } from "firebase/database";
 import { logout } from "./services/authService";
-import { firestoreService } from "./services/firestoreService";
 import { apiService } from "./services/apiService";
+import { firestoreService } from "./services/firestoreService";
 import React, { useState, useEffect } from 'react';
+import { streakService } from './services/streakService';
+import { activityService } from './services/activityService';
 import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import Matching from './components/Matching';
 import SessionModule from './components/SessionModule';
 import Leaderboard from './components/Leaderboard';
 import LearnHub from './components/LearnHub';
+import Requests from './components/Requests';
 import LoginModal from './components/LoginModal';
 import AuthPage from './components/AuthPage';
 import VerifyEmailPage from './components/VerifyEmailPage';
 import AIAssistant from './components/AIAssistant';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation, Link } from 'react-router-dom';
 import { Student } from './types';
-import { Menu, Zap, Bell, Layout, Users, Trophy, Target, User, Ghost, MessageSquareCode, RefreshCcw, Loader2, Book } from 'lucide-react';
+import { Ghost, RefreshCcw, Loader2, Layout, Users, Book, Trophy, MessageSquareCode, User, Zap, Inbox, Bell, Menu } from 'lucide-react';
 
 const isProfileComplete = (profile: Student | null): boolean => {
   if (!profile) return false;
@@ -87,18 +90,21 @@ const MainApp: React.FC<{
   // RTDB Presence
   useEffect(() => {
     if (firebaseUser && user) {
-      const userStatusRef = ref(rtdb, `/status/${firebaseUser.uid}`);
-      set(userStatusRef, {
-        online: true,
-        name: user.name || user.displayName || 'Anonymous',
-        avatar: user.avatar || user.photoURL || null,
-        lastChanged: rtdbTimestamp()
+      const connectedRef = ref(rtdb, '.info/connected');
+      const unsubscribe = onValue(connectedRef, (snap) => {
+        if (snap.val() === true) {
+          const myConnectionsRef = ref(rtdb, `/presence/${firebaseUser.uid}/connections`);
+          const lastOnlineRef = ref(rtdb, `/presence/${firebaseUser.uid}/lastOnline`);
+          
+          const con = push(myConnectionsRef);
+          
+          onDisconnect(con).remove().then(() => {
+            onDisconnect(lastOnlineRef).set(rtdbTimestamp());
+            set(con, true);
+          });
+        }
       });
-      
-      onDisconnect(userStatusRef).set({
-        online: false,
-        lastChanged: rtdbTimestamp()
-      });
+      return () => unsubscribe();
     }
   }, [firebaseUser, user]);
 
@@ -143,17 +149,13 @@ const MainApp: React.FC<{
     if (!user || !firebaseUser) return;
     
     let xpGained = 0;
-    let newStreak = user.streak || 0;
     
     if (quizScore >= 8) {
       xpGained = 500;
-      newStreak += 1;
     } else if (quizScore >= 5) {
       xpGained = 250;
-      newStreak += 1;
     } else {
       xpGained = 50;
-      newStreak = 0;
     }
 
     const newPoints = (user.points || 0) + xpGained;
@@ -171,16 +173,53 @@ const MainApp: React.FC<{
 
     await firestoreService.updateUser(firebaseUser.uid, {
       points: newPoints,
-      streak: newStreak,
       rank: newRank,
       skillReputation: (user.skillReputation || 1) + 0.1,
       sessionsCount: (user.sessionsCount || 0) + 1,
       quizHistory: newQuizHistory
     });
 
+    // Authoritative daily streak increment
+    await streakService.recordLearningActivity(firebaseUser.uid, 'session');
+
     if (activeSession?.sessionId) {
       try {
         await apiService.completeSession(activeSession.sessionId);
+        
+        // Record Session History 
+        // We use the sessionId as the activity ID to guarantee idempotency.
+        const sessionActivityId = `session_${activeSession.sessionId}`;
+        const partnerName = activeSession.partner ? activeSession.partner.name : 'peer';
+        const sessionDesc = `Completed ${activeSession.skill} session with ${partnerName}`;
+        
+        await activityService.recordActivity(
+          firebaseUser.uid,
+          sessionActivityId,
+          'session',
+          `Session Completed`,
+          sessionDesc,
+          {
+            sessionId: activeSession.sessionId,
+            partnerUid: activeSession.partner?.uid || '',
+            skill: activeSession.skill
+          }
+        );
+        
+        // Record Quiz History
+        // We append _quiz to guarantee it's unique but tightly coupled to the session.
+        const quizActivityId = `quiz_${activeSession.sessionId}`;
+        await activityService.recordActivity(
+          firebaseUser.uid,
+          quizActivityId,
+          'quiz',
+          `Quiz Completed — ${quizScore}/10`,
+          `Verified knowledge in ${activeSession.skill}`,
+          {
+            sessionId: activeSession.sessionId,
+            skill: activeSession.skill
+          }
+        );
+        
         // We use quizScore (0 to 10) to map to a 1 to 5 star rating
         const rating = Math.max(1, Math.min(5, Math.ceil(quizScore / 2)));
         await apiService.createReview(activeSession.sessionId, rating, `Automated review for scoring ${quizScore}/10 on quiz`);
@@ -190,7 +229,7 @@ const MainApp: React.FC<{
     }
 
     setActiveSession(null);
-    setActiveTab('dashboard');
+    navigate('/dashboard');
     triggerNotification(`Quiz Score: ${quizScore}/10! Gained ${xpGained} XP.`);
   };
 
@@ -227,7 +266,6 @@ const MainApp: React.FC<{
       ]);
       setUser(prev => ({ ...(prev || {}), ...updatedUser } as Student));
       setIsLoginModalOpen(false);
-      navigate('/dashboard', { replace: true });
       triggerNotification(`Hello, ${name.split(' ')[0]}! Neural Link Established.`);
     } catch (err) {
       throw err;
@@ -282,8 +320,6 @@ const MainApp: React.FC<{
   // 4. Fully Authenticated and Complete -> Dashboard / Main App
   return (
     <div className={`${isDark ? 'text-slate-100 bg-slate-950' : 'text-slate-900 bg-[#f8faff]'} min-h-screen transition-colors duration-500`}>
-      {/* Manual profile edit modal (when triggered from nav) */}
-      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} onLogin={handleProfileSetup} currentUser={user} />
       
       {notification && (
         <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[110] animate-in slide-in-from-top-10 duration-500 pointer-events-none">
@@ -297,7 +333,10 @@ const MainApp: React.FC<{
       <header className="md:hidden sticky top-0 z-40 p-4 bg-inherit/80 backdrop-blur-xl border-b border-slate-200 dark:border-white/5">
         <div className="flex items-center justify-between">
           <button onClick={() => setIsSidebarOpen(true)} className="p-3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm"><Menu size={20} /></button>
-          <div className="flex items-center gap-2"><Zap size={22} className="text-indigo-600 dark:text-cyan-400 fill-current" /><span className="font-black text-xl tracking-tighter">SkillSwap</span></div>
+          <Link to="/dashboard" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} className="flex items-center gap-2 hover:opacity-80 transition-opacity focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-lg">
+            <Zap size={22} className="text-indigo-600 dark:text-cyan-400 fill-current" />
+            <span className="font-black text-xl tracking-tighter">SkillSwap</span>
+          </Link>
           <button onClick={() => setIsLoginModalOpen(true)} className="relative group">
             <div className={`w-10 h-10 rounded-2xl object-cover ring-2 ring-indigo-500 transition-transform active:scale-90 flex items-center justify-center bg-slate-800 ${isSyncing ? 'animate-pulse' : ''}`}>
                {user?.avatar || user?.photoURL ? (
@@ -318,7 +357,7 @@ const MainApp: React.FC<{
 
         <main className="flex-1 min-w-0">
           <div className="p-4 md:p-8 lg:p-12">
-             <div className={`mx-auto max-w-7xl glass min-h-[85vh] rounded-[2.5rem] md:rounded-[4rem] border-white/50 dark:border-white/5 shadow-2xl overflow-hidden transition-all relative ${activeSession ? 'md:max-w-full' : ''}`}>
+             <div className={`mx-auto w-full glass min-h-[85vh] rounded-[2.5rem] md:rounded-[4rem] border-white/50 dark:border-white/5 shadow-2xl overflow-hidden transition-all relative`}>
                
                {!activeSession && (
                  <div className="absolute top-8 right-8 z-30 hidden md:flex items-center gap-4">
@@ -326,7 +365,7 @@ const MainApp: React.FC<{
                       {isSyncing ? <Loader2 size={16} className="animate-spin text-indigo-600" /> : <RefreshCcw size={16} className="text-indigo-600" />}
                       <span>{isSyncing ? 'Syncing...' : 'Neural Sync'}</span>
                     </button>
-                    <button onClick={() => { setIsLoginModalOpen(true); navigate('/profile'); }} className="flex items-center gap-4 px-6 py-4 glass text-slate-900 dark:text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest border-indigo-100 dark:border-white/10 hover:border-indigo-600 hover:scale-105 active:scale-95 transition-all shadow-sm">
+                    <button onClick={() => setIsLoginModalOpen(true)} className="flex items-center gap-4 px-6 py-4 glass text-slate-900 dark:text-white rounded-[1.5rem] font-black text-[10px] uppercase tracking-widest border-indigo-100 dark:border-white/10 hover:border-indigo-600 hover:scale-105 active:scale-95 transition-all shadow-sm">
                       <User size={16} className="text-indigo-600" />
                       <span>Profile</span>
                     </button>
@@ -339,6 +378,7 @@ const MainApp: React.FC<{
                  <div className="pb-24 md:pb-0">
                     <Routes>
                       <Route path="/dashboard" element={<Dashboard onStartSession={handleStartSession} isSyncing={isSyncing} />} />
+                      <Route path="/requests" element={<Requests onStartSession={handleStartSession} />} />
                       <Route path="/matches" element={<Matching onStartSession={handleStartSession} />} />
                       <Route path="/learn" element={<LearnHub />} />
                       <Route path="/leaderboard" element={<Leaderboard />} />
@@ -362,32 +402,31 @@ const MainApp: React.FC<{
                           </div>
                         </div>
                       } />
-                      <Route path="/profile" element={
-                        <>
-                          <Dashboard onStartSession={handleStartSession} isSyncing={isSyncing} />
-                          <LoginModal isOpen={true} onClose={() => navigate('/dashboard')} onLogin={async (n, c, b, s, w, a, bio) => {
-                            await Promise.race([
-                              firestoreService.updateUser(firebaseUser.uid, { name: n, college: c, branch: b, strongSkills: s, weakSkills: w, avatar: a, bio }),
-                              new Promise((_, reject) => setTimeout(() => reject(new Error("Save operation timed out. Please try again.")), 10000))
-                            ]);
-                            setUser(prev => prev ? { ...prev, name: n, college: c, branch: b, strongSkills: s, weakSkills: w, avatar: a, bio } : null);
-                            navigate('/dashboard', { replace: true });
-                          }} currentUser={user} />
-                        </>
-                      } />
+
                       <Route path="*" element={<Navigate to="/dashboard" replace />} />
                     </Routes>
                  </div>
                )}
-             </div>
-          </div>
+              </div>
+            </div>
         </main>
+
+        {/* Profile Side Panel (Desktop) / Modal (Mobile) */}
+        {user && (
+          <LoginModal 
+            isOpen={isLoginModalOpen} 
+            onClose={() => setIsLoginModalOpen(false)} 
+            onLogin={handleProfileSetup} 
+            currentUser={user} 
+          />
+        )}
       </div>
 
       {!activeSession && (
         <nav className="md:hidden fixed bottom-6 left-6 right-6 z-40 glass px-6 py-4 rounded-[2.5rem] border-white/20 dark:border-white/10 shadow-2xl flex items-center justify-around">
           {[
             { id: 'dashboard', path: '/dashboard', icon: Layout },
+            { id: 'requests', path: '/requests', icon: Inbox },
             { id: 'matching', path: '/matches', icon: Users },
             { id: 'learnhub', path: '/learn', icon: Book },
             { id: 'leaderboard', path: '/leaderboard', icon: Trophy },

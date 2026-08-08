@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => {
       plugins: [react()],
       define: {
         // Ensure process.env.API_KEY is available in the browser
-        'process.env.API_KEY': JSON.stringify(env.API_KEY || env.GEMINI_API_KEY),
+        'process.env.API_KEY': JSON.stringify(env.API_KEY || env.OPENAI_API_KEY),
       },
       resolve: {
         alias: {

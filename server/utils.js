@@ -16,6 +16,18 @@ export function buildSafePrompt(instruction, userInput) {
 
 export const chatSchema = z.object({ query: z.string().trim().min(1).max(500).transform(sanitizeText) });
 export const skillSchema = z.object({ skill: z.string().trim().min(1).max(100).transform(sanitizeText) });
+export const dayContentSchema = z.object({
+  skill: z.string().trim().min(1).max(100).transform(sanitizeText),
+  dayNumber: z.number().int().min(1).max(100),
+  dayTitle: z.string().trim().max(200).transform(sanitizeText),
+  topics: z.array(z.string().trim().max(100).transform(sanitizeText)).max(10)
+});
+export const dayQuizSchema = z.object({
+  skill: z.string().trim().min(1).max(100).transform(sanitizeText),
+  dayNumber: z.number().int().min(1).max(100),
+  dayTitle: z.string().trim().max(200).transform(sanitizeText),
+  topics: z.array(z.string().trim().max(100).transform(sanitizeText)).max(10)
+});
 export const insightSchema = z.object({ skills: z.array(z.string().trim().min(1).max(100).transform(sanitizeText)).max(20).optional().default([]) });
 export const createSwapRequestSchema = z.object({
   receiverUid: z.string().trim().min(1),
