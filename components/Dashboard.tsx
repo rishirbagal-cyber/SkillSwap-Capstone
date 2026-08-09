@@ -206,7 +206,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
           <h3 className="text-xl font-black flex items-center gap-3 dark:text-white uppercase tracking-tighter">
             <BrainCircuit className="text-indigo-600" size={24} /> Top Matches for You
           </h3>
-          <button className="text-[10px] font-black uppercase text-indigo-600 tracking-widest flex items-center gap-2 group hover:translate-x-1 transition-all">
+          <button onClick={() => navigate('/matches')} className="text-[10px] font-black uppercase text-indigo-600 tracking-widest flex items-center gap-2 group hover:translate-x-1 transition-all">
             See Neural Network <ArrowRight size={14} />
           </button>
         </div>
