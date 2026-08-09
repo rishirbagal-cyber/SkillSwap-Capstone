@@ -155,7 +155,15 @@ export const learningPathService = {
       if (xpAwarded > 0) {
         const user = await firestoreService.getUser(userId);
         if (user) {
-          await firestoreService.updateUser(userId, { points: (user.points || 0) + xpAwarded });
+          const newQuizHistory = [...(user.quizHistory || []), {
+            date: new Date().toLocaleDateString(),
+            score: score,
+            pointsEarned: xpAwarded
+          }];
+          await firestoreService.updateUser(userId, { 
+            points: (user.points || 0) + xpAwarded,
+            quizHistory: newQuizHistory
+          });
         }
       }
     } else {

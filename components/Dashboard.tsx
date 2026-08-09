@@ -81,31 +81,32 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
 
 
   const chartData = useMemo(() => {
-    if (!user || !user.quizHistory || user.quizHistory.length === 0) {
-      return [
-        { name: 'Mon', score: 0 },
-        { name: 'Tue', score: 0 },
-        { name: 'Wed', score: 0 },
-        { name: 'Thu', score: 0 },
-        { name: 'Fri', score: 0 },
-        { name: 'Sat', score: 0 },
-        { name: 'Sun', score: 0 },
-      ];
-    }
+    const days: { dateStr: string; name: string; score: number }[] = [];
+    const today = new Date();
     
-    let mapped = user.quizHistory.map((q, i) => ({
-      name: q.date.split('/')[0] + '/' + q.date.split('/')[1], // short date
-      score: q.score
-    }));
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(today.getDate() - i);
+      const dateStr = d.toLocaleDateString();
+      const shortName = d.toLocaleDateString('en-US', { weekday: 'short' }); 
+      
+      days.push({
+        dateStr,
+        name: shortName,
+        score: 0
+      });
+    }
 
-    if (mapped.length < 7) {
-      const padding = Array(7 - mapped.length).fill(0).map((_, i) => ({ name: `-`, score: 0 }));
-      mapped = [...padding, ...mapped];
-    } else if (mapped.length > 7) {
-      mapped = mapped.slice(mapped.length - 7);
+    if (user && user.quizHistory) {
+      user.quizHistory.forEach(q => {
+        const dayMatch = days.find(d => d.dateStr === q.date);
+        if (dayMatch) {
+          dayMatch.score += (q.pointsEarned || 0);
+        }
+      });
     }
     
-    return mapped;
+    return days;
   }, [user]);
 
   const recommendedMatches = useMemo(() => {
