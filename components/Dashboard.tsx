@@ -6,7 +6,7 @@ import { auth, rtdb } from '../services/firebase';
 import { onValue, ref } from 'firebase/database';
 
 import { 
-  Award, BookOpen, Star, TrendingUp, Zap, Target, Flame, 
+  Award, BookOpen, Star, TrendingUp, Target, Flame, 
   Activity, Sparkles, Clock, Users, BrainCircuit, ArrowRight, Globe, User, MessageSquare, Radio
 } from 'lucide-react';
 import { Student } from '../types';
@@ -181,16 +181,11 @@ const Dashboard: React.FC<DashboardProps> = ({ onStartSession, isSyncing }) => {
           </div>
         </div>
         
-        <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6 w-full lg:w-auto">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 w-full lg:w-auto">
           <div className="glass p-4 sm:p-6 rounded-[2.5rem] border-orange-100 dark:border-orange-500/20 text-center flex flex-col items-center group hover:scale-105 transition-all">
             <Flame className="text-orange-500 mb-2 group-hover:scale-110 transition-transform" size={32} />
             <div className="text-3xl font-black dark:text-white">{user.streak || 0}</div>
             <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Daily Streak</div>
-          </div>
-          <div className="glass p-4 sm:p-6 rounded-[2.5rem] border-cyan-100 dark:border-cyan-500/20 text-center flex flex-col items-center group hover:scale-105 transition-all">
-            <Zap className="text-cyan-500 mb-2 group-hover:scale-110 transition-transform" size={32} />
-            <div className="text-3xl font-black dark:text-white">{user.points || 0}</div>
-            <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest mt-1">Total Power</div>
           </div>
           <div className="glass p-4 sm:p-6 rounded-[2.5rem] border-indigo-100 dark:border-indigo-500/20 text-center flex flex-col items-center group hover:scale-105 transition-all">
             <Globe className="text-indigo-600 mb-2 group-hover:scale-110 transition-transform" size={32} />

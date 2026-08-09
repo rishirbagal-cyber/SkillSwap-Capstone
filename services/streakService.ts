@@ -26,7 +26,7 @@ export const streakService = {
     const [tY, tM, tD] = todayStr.split('-').map(Number);
     const todayUTC = Date.UTC(tY, tM - 1, tD);
 
-    const userRef = doc(db, 'students', uid);
+    const userRef = doc(db, 'users', uid);
 
     try {
       await runTransaction(db, async (transaction) => {
