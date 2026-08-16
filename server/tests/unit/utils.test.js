@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sanitizeText, buildSafePrompt, chatSchema, createReviewSchema } from '../../utils.js';
+import { sanitizeText, buildSafePrompt, chatSchema, createReviewSchema, skillSchema, dayContentSchema, createSwapRequestSchema, respondSwapRequestSchema, updateSessionSchema } from '../../utils.js';
 
 describe('Sanitization (sanitizeText)', () => {
   it('preserves normal text', () => {
@@ -30,6 +30,51 @@ describe('Validation (Zod Schemas)', () => {
   it('fails on invalid enum/rating', () => {
     // rating must be 1-5
     expect(() => createReviewSchema.parse({ sessionId: '123', rating: 6, comment: 'Good' })).toThrow(); 
+  });
+
+  it('skillSchema validates max length', () => {
+    expect(() => skillSchema.parse({ skill: 'A'.repeat(101) })).toThrow();
+  });
+
+  it('dayContentSchema validates topics array length', () => {
+    expect(() => dayContentSchema.parse({
+      skill: 'React',
+      dayNumber: 1,
+      dayTitle: 'Intro',
+      topics: Array(11).fill('Topic') // max 10
+    })).toThrow();
+  });
+
+  it('dayContentSchema fails on invalid dayNumber', () => {
+    expect(() => dayContentSchema.parse({
+      skill: 'React',
+      dayNumber: 101, // max is 100
+      dayTitle: 'Intro',
+      topics: ['Topic']
+    })).toThrow();
+  });
+
+  it('createSwapRequestSchema fails if field is missing', () => {
+    expect(() => createSwapRequestSchema.parse({
+      receiverUid: '123',
+      skillWanted: 'Python'
+    })).toThrow(); // missing skillOffered
+  });
+
+  it('respondSwapRequestSchema fails on invalid enum', () => {
+    expect(() => respondSwapRequestSchema.parse({ action: 'maybe' })).toThrow();
+    expect(respondSwapRequestSchema.parse({ action: 'accept' }).action).toBe('accept');
+  });
+
+  it('updateSessionSchema fails on invalid enum', () => {
+    expect(() => updateSessionSchema.parse({ status: 'PENDING' })).toThrow();
+    expect(updateSessionSchema.parse({ status: 'COMPLETED' }).status).toBe('COMPLETED');
+  });
+
+  it('createReviewSchema allows nullable/optional comment', () => {
+    const res = createReviewSchema.parse({ sessionId: '123', rating: 5 });
+    expect(res.rating).toBe(5);
+    expect(res.comment).toBeUndefined();
   });
 });
 

@@ -14,6 +14,7 @@ const AIAssistant: React.FC = () => {
   const [input, setInput] = useState('');
   // isTyping is our single-flight guard — prevents ANY new request while one is in progress.
   const [isTyping, setIsTyping] = useState(false);
+  const isTypingRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   // AbortController ref lets us cancel in-flight requests on unmount (React Strict Mode safe).
   const abortRef = useRef<AbortController | null>(null);
@@ -35,12 +36,14 @@ const AIAssistant: React.FC = () => {
   const handleSend = useCallback(async () => {
     // Guard 1: No empty input.
     // Guard 2: isTyping lock prevents concurrent requests (double-click, Enter spam).
-    if (!input.trim() || isTyping) return;
+    if (!input.trim() || isTypingRef.current) return;
 
     const userMsg = input.trim();
     setInput('');
     setMessages(prev => [...prev, { role: 'user', content: userMsg }]);
+    
     setIsTyping(true);
+    isTypingRef.current = true;
 
     // Create a fresh AbortController for this request.
     const controller = new AbortController();
@@ -59,16 +62,18 @@ const AIAssistant: React.FC = () => {
       const isRateLimit =
         error.message?.includes('429') ||
         error.message?.includes('rate limit') ||
-        error.message?.toLowerCase().includes('too many');
+        error.message?.toLowerCase().includes('too many') ||
+        error.message?.toLowerCase().includes('quota');
 
       const errorMsg = isRateLimit
-        ? "⚠️ Rate limit reached. The AI's free tier allows limited requests per minute. Please wait a moment and try again."
+        ? "AI quota temporarily exceeded. Please try again later."
         : "Neural handshake failed. Please check your connection and try again.";
 
       setMessages(prev => [...prev, { role: 'assistant', content: errorMsg }]);
     } finally {
       if (!controller.signal.aborted) {
         setIsTyping(false);
+        isTypingRef.current = false;
       }
     }
   }, [input, isTyping]);

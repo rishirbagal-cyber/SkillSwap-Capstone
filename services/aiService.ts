@@ -33,7 +33,8 @@ export const aiService = {
     
     if (!response.ok) {
       if (response.status === 429) {
-        throw new Error("AI rate limit reached (429). Please wait ~60 seconds and try again.");
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "AI quota temporarily exceeded. Please try again later.");
       }
       throw new Error('Failed to generate quiz');
     }
@@ -58,7 +59,8 @@ export const aiService = {
     
     if (!response.ok) {
       if (response.status === 429) {
-        throw new Error("AI rate limit reached (429). Please wait ~60 seconds and try again.");
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "AI quota temporarily exceeded. Please try again later.");
       }
       throw new Error('Failed to generate roadmap');
     }
@@ -92,7 +94,8 @@ export const aiService = {
     
     if (!response.ok) {
       if (response.status === 429) {
-        throw new Error("AI rate limit reached (429). Please wait ~60 seconds and try again.");
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "AI quota temporarily exceeded. Please try again later.");
       }
       throw new Error('Failed to generate day content');
     }
@@ -120,7 +123,8 @@ export const aiService = {
     
     if (!response.ok) {
       if (response.status === 429) {
-        throw new Error("AI rate limit reached (429). Please wait ~60 seconds and try again.");
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.error || "AI quota temporarily exceeded. Please try again later.");
       }
       throw new Error('Failed to generate day quiz');
     }
@@ -191,7 +195,8 @@ export const aiService = {
       
       if (!response.ok) {
         if (response.status === 429) {
-          throw new Error("Rate limit reached. Please wait ~60s.");
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.error || "AI quota temporarily exceeded. Please try again later.");
         }
         return "I'm having trouble right now. Please try again.";
       }

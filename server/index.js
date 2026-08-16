@@ -26,7 +26,7 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Vary', 'Origin');
-  
+
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -67,8 +67,8 @@ const validateRequest = (schema) => (req, res, next) => {
     next();
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ 
-        error: "Invalid request data", 
+      return res.status(400).json({
+        error: "Invalid request data",
         details: error.issues ? error.issues.map(e => ({ path: e.path.join('.'), message: e.message })) : []
       });
     }
@@ -87,20 +87,36 @@ if (apiKey) {
 
 async function generateAIResponse(prompt, feature = 'Unknown') {
   if (aiClient) {
-    const model = aiClient.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = aiClient.getGenerativeModel({ model: "gemini-3.5-flash-lite" });
     const result = await model.generateContent(prompt);
-    return result.response.text();
+    const text = result.response.text();
+    
+    const usage = result.response.usageMetadata;
+    console.log(JSON.stringify({
+      timestamp: new Date().toISOString(),
+      feature,
+      inputLength: prompt.length,
+      outputLength: text.length,
+      tokens: usage ? {
+        prompt: usage.promptTokenCount,
+        candidates: usage.candidatesTokenCount,
+        total: usage.totalTokenCount
+      } : null
+    }));
+
+    return text;
   }
-  
+
+  let text = "";
   if (prompt.includes("multiple-choice quiz")) {
-    return JSON.stringify([
+    text = JSON.stringify([
       { question: "What is the primary purpose of this skill?", options: ["To build things", "To break things", "To eat things", "To sleep"], correctIndex: 0 },
       { question: "Which tool is commonly associated with this?", options: ["Hammer", "Compiler", "Screwdriver", "Oven"], correctIndex: 1 },
       { question: "How long does it take to master?", options: ["1 Day", "1 Week", "Years of practice", "Never"], correctIndex: 2 }
     ]);
   } else if (prompt.includes("learning roadmap")) {
     const days = [];
-    for(let i=1; i<=30; i++) {
+    for (let i = 1; i <= 30; i++) {
       days.push({
         day: i,
         title: `Day ${i}: Fundamentals`,
@@ -109,10 +125,21 @@ async function generateAIResponse(prompt, feature = 'Unknown') {
         difficulty: "Beginner"
       });
     }
-    return JSON.stringify(days);
+    text = JSON.stringify(days);
   } else {
-    return "This is a mock response because the GEMINI_API_KEY is not set. The UI is fully working! To get real AI responses, add a valid Gemini API key to your backend's .env file.";
+    text = "This is a mock response because the GEMINI_API_KEY is not set. The UI is fully working! To get real AI responses, add a valid Gemini API key to your backend's .env file.";
   }
+
+  console.log(JSON.stringify({
+    timestamp: new Date().toISOString(),
+    feature,
+    inputLength: prompt.length,
+    outputLength: text.length,
+    tokens: null,
+    mock: true
+  }));
+
+  return text;
 }
 
 app.post("/api/chat", validateRequest(chatSchema), async (req, res) => {
@@ -124,6 +151,9 @@ app.post("/api/chat", validateRequest(chatSchema), async (req, res) => {
     res.json({ message: text });
   } catch (error) {
     console.error("CHAT ERROR:", error);
+    if (error?.status === 429 || error?.message?.includes('429') || error?.message?.toLowerCase().includes('quota')) {
+      return res.status(429).json({ error: "AI quota temporarily exceeded. Please try again later." });
+    }
     res.status(500).json({ error: "AI failed to respond" });
   }
 });
@@ -139,6 +169,9 @@ app.post("/api/quiz", validateRequest(skillSchema), async (req, res) => {
     res.json(json);
   } catch (error) {
     console.error("QUIZ ERROR:", error);
+    if (error?.status === 429 || error?.message?.includes('429') || error?.message?.toLowerCase().includes('quota')) {
+      return res.status(429).json({ error: "AI quota temporarily exceeded. Please try again later." });
+    }
     res.json([
       { question: `Which of these best describes ${req.body.skill}?`, options: ["Concept", "Tool", "Framework", "Language"], correctIndex: 0 }
     ]);
@@ -170,6 +203,9 @@ Do NOT wrap the response in markdown blocks like \`\`\`json. Return JUST the raw
     res.json(json);
   } catch (error) {
     console.error("ROADMAP ERROR:", error);
+    if (error?.status === 429 || error?.message?.includes('429') || error?.message?.toLowerCase().includes('quota')) {
+      return res.status(429).json({ error: "AI quota temporarily exceeded. Please try again later." });
+    }
     res.status(500).json({ error: "Failed to generate roadmap. Please try again." });
   }
 });
@@ -194,10 +230,13 @@ Do NOT wrap the response in markdown blocks like \`\`\`json. Return JUST the raw
     const text = await generateAIResponse(prompt, 'Day Content AI');
     const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const json = JSON.parse(cleanJson);
-    
+
     res.json(json);
   } catch (error) {
     console.error("DAY CONTENT ERROR:", error);
+    if (error?.status === 429 || error?.message?.includes('429') || error?.message?.toLowerCase().includes('quota')) {
+      return res.status(429).json({ error: "AI quota temporarily exceeded. Please try again later." });
+    }
     res.status(500).json({ error: "Failed to generate day content. Please try again." });
   }
 });
@@ -221,14 +260,17 @@ Do NOT wrap the response in markdown blocks like \`\`\`json. Return JUST the raw
     const text = await generateAIResponse(prompt, 'Day Quiz AI');
     const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
     const json = JSON.parse(cleanJson);
-    
+
     if (!Array.isArray(json) || json.length !== 10) {
-       console.warn(`Day Quiz AI generated ${json?.length} questions instead of 10. Returning anyway, but might be less than 10.`);
+      console.warn(`Day Quiz AI generated ${json?.length} questions instead of 10. Returning anyway, but might be less than 10.`);
     }
-    
+
     res.json(json);
   } catch (error) {
     console.error("DAY QUIZ ERROR:", error);
+    if (error?.status === 429 || error?.message?.includes('429') || error?.message?.toLowerCase().includes('quota')) {
+      return res.status(429).json({ error: "AI quota temporarily exceeded. Please try again later." });
+    }
     res.status(500).json({ error: "Failed to generate day quiz. Please try again." });
   }
 });
@@ -296,7 +338,7 @@ app.get("/api/swap-requests", requireAuth, async (req, res) => {
     const uid = req.user.uid;
     const requests = await prisma.skillSwapRequest.findMany({
       where: {
-        OR: [ { senderUid: uid }, { receiverUid: uid } ]
+        OR: [{ senderUid: uid }, { receiverUid: uid }]
       },
       include: {
         session: true
@@ -317,7 +359,7 @@ app.patch("/api/swap-requests/:id", requireAuth, validateRequest(respondSwapRequ
     const uid = req.user.uid;
 
     const request = await prisma.skillSwapRequest.findUnique({ where: { id } });
-    
+
     if (!request) return res.status(404).json({ error: "Request not found." });
     if (request.receiverUid !== uid) {
       return res.status(403).json({ error: "You are not authorized to respond to this request." });
@@ -327,7 +369,7 @@ app.patch("/api/swap-requests/:id", requireAuth, validateRequest(respondSwapRequ
     }
 
     const newStatus = action === 'accept' ? 'ACCEPTED' : 'REJECTED';
-    
+
     const updatedRequest = await prisma.skillSwapRequest.update({
       where: { id },
       data: { status: newStatus }
@@ -357,7 +399,7 @@ app.get("/api/sessions", requireAuth, async (req, res) => {
     const uid = req.user.uid;
     const sessions = await prisma.session.findMany({
       where: {
-        OR: [ { tutorUid: uid }, { learnerUid: uid } ]
+        OR: [{ tutorUid: uid }, { learnerUid: uid }]
       },
       include: { request: true },
       orderBy: { createdAt: 'desc' }

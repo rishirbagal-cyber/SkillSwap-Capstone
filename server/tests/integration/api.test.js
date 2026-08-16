@@ -23,6 +23,43 @@ describe('API Integration Tests', () => {
         
       expect(res.status).toBe(400);
     });
+
+    it('returns 400 Bad Request for oversized input (POST /api/chat)', async () => {
+      const res = await request(app)
+        .post('/api/chat')
+        .send({ query: 'A'.repeat(501) }); // max is 500
+        
+      expect(res.status).toBe(400);
+      expect(res.body.details[0].path).toBe('query');
+    });
+
+    it('returns 400 Bad Request for missing array elements (POST /api/day-content)', async () => {
+      const res = await request(app)
+        .post('/api/day-content')
+        .send({
+          skill: 'React',
+          dayNumber: 1,
+          dayTitle: 'Intro'
+          // missing topics array
+        });
+        
+      expect(res.status).toBe(400);
+      expect(res.body.details[0].path).toBe('topics');
+    });
+
+    it('returns 400 Bad Request for oversized array (POST /api/day-quiz)', async () => {
+      const res = await request(app)
+        .post('/api/day-quiz')
+        .send({
+          skill: 'React',
+          dayNumber: 1,
+          dayTitle: 'Intro',
+          topics: Array(11).fill('Topic') // max 10
+        });
+        
+      expect(res.status).toBe(400);
+      expect(res.body.details[0].path).toBe('topics');
+    });
   });
 
   describe('Valid Request Path (Public Route)', () => {
