@@ -394,6 +394,31 @@ app.patch("/api/swap-requests/:id", requireAuth, validateRequest(respondSwapRequ
 });
 
 // 2. Sessions
+app.get("/api/sessions/stats", requireAuth, async (req, res) => {
+  try {
+    const uid = req.user.uid;
+    // Demonstrate filtering (where), grouping (by), aggregation (_count), and ordering (orderBy)
+    const stats = await prisma.session.groupBy({
+      by: ['status'],
+      where: {
+        tutorUid: uid
+      },
+      _count: {
+        id: true
+      },
+      orderBy: {
+        _count: {
+          id: 'desc'
+        }
+      }
+    });
+    res.json(stats);
+  } catch (error) {
+    console.error("GET SESSION STATS ERROR:", error);
+    res.status(500).json({ error: "Failed to fetch session stats." });
+  }
+});
+
 app.get("/api/sessions", requireAuth, async (req, res) => {
   try {
     const uid = req.user.uid;

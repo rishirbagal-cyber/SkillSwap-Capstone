@@ -158,6 +158,10 @@ export default function AuthPage() {
                 type="text"
                 placeholder="Username"
                 required
+                minLength={3}
+                maxLength={30}
+                pattern=".*\S+.*"
+                title="Username must be 3-30 characters and cannot be empty spaces"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
               />
@@ -180,6 +184,9 @@ export default function AuthPage() {
                 type="password"
                 placeholder="Password"
                 required
+                minLength={8}
+                pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}"
+                title="Password must contain at least 8 characters, including one uppercase letter, one lowercase letter, and one number"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />

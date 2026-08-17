@@ -124,7 +124,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Full Name *</label>
               <div className="relative group">
                 <User className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-400 transition-colors" size={18} />
-                <input type="text" required value={name} onChange={(e) => setName(e.target.value)} placeholder="Full Name" className="w-full bg-white/5 pl-14 pr-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-white placeholder:text-slate-600" />
+                <input type="text" required minLength={2} maxLength={50} pattern=".*\S+.*" title="Name must be 2-50 characters and cannot be empty spaces" value={name} onChange={(e) => setName(e.target.value)} placeholder="Full Name" className="w-full bg-white/5 pl-14 pr-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-white placeholder:text-slate-600" />
               </div>
             </div>
 
@@ -132,7 +132,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">College</label>
               <div className="relative group">
                 <GraduationCap className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-400 transition-colors" size={18} />
-                <input type="text" value={college} onChange={(e) => setCollege(e.target.value)} placeholder="e.g. Stanford University" className="w-full bg-white/5 pl-14 pr-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-white placeholder:text-slate-600" />
+                <input type="text" maxLength={100} value={college} onChange={(e) => setCollege(e.target.value)} placeholder="e.g. Stanford University" className="w-full bg-white/5 pl-14 pr-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-white placeholder:text-slate-600" />
               </div>
             </div>
 
@@ -140,7 +140,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Branch / Major</label>
               <div className="relative group">
                 <BookOpen className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-400 transition-colors" size={18} />
-                <input type="text" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="e.g. Computer Science" className="w-full bg-white/5 pl-14 pr-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-white placeholder:text-slate-600" />
+                <input type="text" maxLength={100} value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="e.g. Computer Science" className="w-full bg-white/5 pl-14 pr-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-white placeholder:text-slate-600" />
               </div>
             </div>
           </div>
@@ -151,7 +151,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
               <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">Bio</label>
               <div className="relative group">
                 <FileText className="absolute left-6 top-6 text-slate-400 group-focus-within:text-indigo-400 transition-colors" size={18} />
-                <textarea value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell us about yourself..." className="w-full bg-white/5 pl-14 pr-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-white placeholder:text-slate-600 min-h-[100px] resize-none"></textarea>
+                <textarea maxLength={500} value={bio} onChange={(e) => setBio(e.target.value)} placeholder="Tell us about yourself..." className="w-full bg-white/5 pl-14 pr-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-white placeholder:text-slate-600 min-h-[100px] resize-none"></textarea>
               </div>
             </div>
 
@@ -163,7 +163,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin, curre
               </div>
               
               <div className="relative">
-                <input type="text" value={newSkill} onChange={(e) => setNewSkill(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSkill())} placeholder={`Add skill to ${skillType === 'strong' ? 'teach' : 'learn'}...`} className="w-full bg-white/5 px-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-sm text-white placeholder:text-slate-600" />
+                <input type="text" maxLength={50} value={newSkill} onChange={(e) => setNewSkill(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSkill())} placeholder={`Add skill to ${skillType === 'strong' ? 'teach' : 'learn'}...`} className="w-full bg-white/5 px-6 py-4 rounded-2xl outline-none border border-white/10 focus:border-indigo-500 transition-all font-bold text-sm text-white placeholder:text-slate-600" />
                 <button type="button" onClick={handleAddSkill} className="absolute right-3 top-1/2 -translate-y-1/2 p-2 bg-white/10 rounded-xl hover:bg-indigo-600 hover:text-white transition-all"><Plus size={16} /></button>
               </div>
 
